@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <!--
+    Station Layout Builder — Version Zero
+
+    Baseline rules:
+    - Single source of truth: STATE
+    - Mount-point-only HTML
+    - UI rendered from constants + state
+    - Pointer events only
+    - No native HTML drag/drop API
+    - Snap-to-grid is OFF
+    - Overlap is ALLOWED
+    - Large open canvas: 1800 × 1200
+    - Normal prototype pan sizes
+    - Deferred features stay modeled behind FEATURE_FLAGS
+    - DOM reflects STATE
+
+    Known deferred items:
+    - Rotation swaps width/height; it does not use CSS rotate().
+    - SCALE.print and SCALE.dpi are modeled for future print work.
+    - BRAND.primary is modeled for future branding work.
+    - Selftest is modeled behind FEATURE_FLAGS.selftest and intentionally not active.
+  -->
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Station Layout Builder</title>
+
+  <style>
+    /* ============ SECTION: CSS TOKENS ============ */
+    :root {
+      --color-bg: #f4f4f4;
+      --color-surface: #ffffff;
+      --color-border: #d0d0d0;
+      --color-text: #222222;
+      --color-muted: #666666;
+      --color-primary: #222222;
+      --color-danger: #b00020;
+      --color-grid: rgba(0, 0, 0, 0.08);
+
+      --font-base: Arial, Helvetica, sans-serif;
+      --font-size-ui: 14px;
+      --font-size-item-name: 13px;
+      --font-size-item-notes: 11px;
+
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 14px;
+      --space-lg: 20px;
+
+      --radius-ui: 6px;
+      --radius-item: 4px;
+
+      --canvas-w: 1800px;
+      --canvas-h: 1200px;
+      --grid-size: 24px;
+
+      --z-item: 10;
+      --z-selected: 20;
+      --z-panel: 30;
+    }
+
+    /* ============ SECTION: BASE ============ */
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+    }
+
+    body {
+      overflow: hidden;
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: var(--font-base);
+      font-size: var(--font-size-ui);
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      min-height: 40px;
+    }
+
+    button {
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text);
+      border-radius: var(--radius-ui);
+      padding: var(--space-sm) var(--space-md);
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--color-primary);
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    [tabindex]:focus-visible {
+      outline: 3px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+
+    button.primary {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--color-surface);
+    }
+
+    button.danger {
+      color: var(--color-danger);
+      border-color: var(--color-danger);
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-ui);
+      background: var(--color-surface);
+      color: var(--color-text);
+      padding: var(--space-sm);
+    }
+
+    textarea {
+      min-height: 82px;
+      resize: vertical;
+    }
+
+    /* ============ SECTION: LAYOUT ============ */
+    .app {
+      display: grid;
+      grid-template-columns: 260px 1fr 300px;
+      grid-template-rows: 58px 1fr 30px;
+      height: 100vh;
+    }
+
+    .header {
+      grid-column: 1 / 4;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--space-md);
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      z-index: var(--z-panel);
+    }
+
+    .sidebar,
+    .editor-panel {
+      background: var(--color-surface);
+      overflow: auto;
+      padding: var(--space-md);
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--color-border);
+    }
+
+    .editor-panel {
+      border-left: 1px solid var(--color-border);
+    }
+
+    .main {
+      overflow: auto;
+      padding: var(--space-md);
+    }
+
+    .status-bar {
+      grid-column: 1 / 4;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-md);
+      border-top: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-muted);
+      font-size: 12px;
+    }
+
+    .section {
+      margin-bottom: var(--space-lg);
+    }
+
+    .section-title {
+      margin: 0 0 var(--space-sm);
+      color: var(--color-muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .brand-logo-placeholder {
+      width: 32px;
+      height: 32px;
+      border: 1px dashed var(--color-border);
+      display: grid;
+      place-items: center;
+      color: var(--color-muted);
+      font-size: 11px;
+    }
+
+    .brand-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    /* ============ SECTION: COMPONENTS ============ */
+    .palette {
+      display: grid;
+      gap: var(--space-sm);
+    }
+
+    .palette-item {
+      text-align: left;
+      width: 100%;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .palette-item-name {
+      display: block;
+      font-weight: 700;
+    }
+
+    .palette-item-meta {
+      display: block;
+      margin-top: var(--space-xs);
+      color: var(--color-muted);
+      font-size: 12px;
+    }
+
+    .canvas-wrap {
+      width: var(--canvas-w);
+      max-width: none;
+    }
+
+    .canvas {
+      position: relative;
+      width: var(--canvas-w);
+      height: var(--canvas-h);
+      border: 1px solid var(--color-border);
+      background:
+        linear-gradient(90deg, var(--color-grid) 1px, transparent 1px),
+        linear-gradient(var(--color-grid) 1px, transparent 1px),
+        var(--color-surface);
+      background-size: var(--grid-size) var(--grid-size);
+      overflow: hidden;
+      contain: layout paint;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .canvas[data-state="empty"]::before {
+      content: attr(data-empty-text);
+      position: absolute;
+      inset: var(--space-md);
+      display: grid;
+      place-items: center;
+      border: 1px dashed var(--color-border);
+      color: var(--color-muted);
+      pointer-events: none;
+    }
+
+    .canvas-item {
+      position: absolute;
+      z-index: var(--z-item);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      border: 1px solid var(--color-text);
+      border-radius: var(--radius-item);
+      background: #e6e6e6;
+      padding: var(--space-xs);
+      cursor: move;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .canvas-item[data-type="pan"] {
+      background: #dddddd;
+    }
+
+    .canvas-item[data-type="rail"] {
+      background: #d9e7f5;
+    }
+
+    .canvas-item[data-type="hot"] {
+      background: #f4ded4;
+    }
+
+    .canvas-item[data-type="note"] {
+      background: #fff4cc;
+    }
+
+    .canvas-item[data-type="block"] {
+      background: #e6e6e6;
+    }
+
+    .canvas-item[data-selected="true"] {
+      z-index: var(--z-selected);
+      outline: 3px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+
+    .canvas-item[data-dragging="true"] {
+      opacity: 0.82;
+      will-change: transform;
+    }
+
+    .item-name {
+      font-size: var(--font-size-item-name);
+      font-weight: 700;
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+    }
+
+    .item-notes {
+      margin-top: var(--space-xs);
+      color: var(--color-muted);
+      font-size: var(--font-size-item-notes);
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+    }
+
+    .field {
+      margin-bottom: var(--space-md);
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: var(--space-xs);
+      color: var(--color-muted);
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-sm);
+    }
+
+    .actions-three {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: var(--space-sm);
+    }
+
+    .empty-state,
+    .error-state {
+      border: 1px dashed var(--color-border);
+      border-radius: var(--radius-ui);
+      padding: var(--space-md);
+      color: var(--color-muted);
+      line-height: 1.4;
+    }
+
+    .error-state {
+      color: var(--color-danger);
+      border-color: var(--color-danger);
+    }
+
+    .json-box {
+      min-height: 130px;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 12px;
+    }
+
+    .print-note {
+      color: var(--color-muted);
+      font-size: 12px;
+    }
+
+    .metadata-line {
+      margin: 0 0 var(--space-md);
+      color: var(--color-muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 1000px) {
+      .app {
+        grid-template-columns: 230px 1fr;
+      }
+
+      .header {
+        grid-column: 1 / 3;
+      }
+
+      .editor-panel {
+        display: none;
+      }
+
+      .status-bar {
+        grid-column: 1 / 3;
+      }
+    }
+
+    /* ============ SECTION: PRINT ============ */
+    @media print {
+      @page {
+        size: 8.5in 11in landscape;
+        margin: 0.25in;
+      }
+
+      html,
+      body,
+      * {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      body {
+        overflow: visible;
+        background: white;
+      }
+
+      .header,
+      .sidebar,
+      .editor-panel,
+      .status-bar,
+      .print-note {
+        display: none !important;
+      }
+
+      .app {
+        display: block;
+        height: auto;
+      }
+
+      .main {
+        padding: 0;
+        overflow: visible;
+      }
+
+      .canvas {
+        width: 1800px;
+        height: 1200px;
+        transform: scale(0.56);
+        transform-origin: top left;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app" class="app">
+    <header id="brandHeader" class="header"></header>
+    <aside id="leftPanel" class="sidebar"></aside>
+    <main id="mainPanel" class="main"></main>
+    <aside id="rightPanel" class="editor-panel"></aside>
+    <div id="statusBar" class="status-bar" aria-live="polite"></div>
+  </div>
+
+  <script>
+    /* ============ SECTION: CONFIG ============ */
+    const APP_VERSION = "0.0.0";
+
+    const FEATURE_FLAGS = {
+      branding: false,
+      snapToGrid: false,
+      collisionDetection: false,
+      print: true,
+      importExport: true,
+      localStorage: true,
+      keyboardShortcuts: true,
+      selftest: false
+    };
+
+    /* ============ SECTION: BRAND ============ */
+    const BRAND = {
+      name: "Station Layout Builder",
+      logo: "",
+      icon: "",
+      primary: "#222222",
+      enabled: false
+    };
+
+    /* ============ SECTION: CONSTANTS ============ */
+    const SCALE = {
+      canvas: { w: 1800, h: 1200 },
+      print: { w: "10.5in", h: "6in" },
+      dpi: 96
+    };
+
+    const GRID_SIZE = 24;
+
+    const COPY = {
+      appName: "Station Layout Builder",
+      sectionPalette: "Palette",
+      sectionStorage: "Storage",
+      sectionSelectedItem: "Selected Item",
+      emptyCanvas: "Select an item from the palette, then place it on the canvas.",
+      noSelection: "Select an item on the canvas to edit its name, notes, type, size, or position.",
+      storageSaved: "Saved",
+      storageLoaded: "Loaded",
+      storageUnavailable: "Storage is unavailable. Data may only last for this session.",
+      storageFull: "Storage is full. Export your JSON before adding more data.",
+      importError: "Could not import JSON.",
+      exportReady: "Exported JSON.",
+      printNote: "For best print results use Chrome and set margins to None in the print dialog.",
+      save: "Save",
+      load: "Load",
+      print: "Print",
+      exportJson: "Export JSON",
+      importJson: "Import JSON",
+      layoutJson: "Layout JSON",
+      name: "Name",
+      notesTooling: "Notes / Tooling",
+      type: "Type",
+      width: "Width",
+      height: "Height",
+      x: "X",
+      y: "Y",
+      rotate: "Rotate",
+      duplicate: "Duplicate",
+      delete: "Delete",
+      logo: "Logo"
+    };
+
+    const ITEM_TYPES = [
+      { id: "pan", label: "Pan" },
+      { id: "rail", label: "Station Rail" },
+      { id: "hot", label: "Hot Well" },
+      { id: "note", label: "Note" },
+      { id: "block", label: "Block" }
+    ];
+
+    const PALETTE_ITEMS = [
+      { id: "pan-1-9", name: "1/9 Pan", type: "pan", w: 80, h: 120 },
+      { id: "pan-1-6", name: "1/6 Pan", type: "pan", w: 120, h: 120 },
+      { id: "pan-1-3", name: "1/3 Pan", type: "pan", w: 120, h: 240 },
+      { id: "pan-1-2", name: "1/2 Pan", type: "pan", w: 180, h: 240 },
+      { id: "full-hotel", name: "Full Hotel", type: "rail", w: 360, h: 240 },
+      { id: "cold-rail", name: "Cold Rail", type: "rail", w: 600, h: 180 },
+      { id: "hot-well", name: "Hot Well", type: "hot", w: 480, h: 180 },
+      { id: "prep-note", name: "Prep Note", type: "note", w: 220, h: 100 },
+      { id: "custom-block", name: "Custom Block", type: "block", w: 200, h: 120 }
+    ];
+
+    const KEYS = {
+      SAVE: "ctrl+s",
+      PRINT: "ctrl+p",
+      DUPLICATE: "ctrl+d",
+      ROTATE: "r",
+      DELETE: "delete",
+      BACKSPACE: "backspace",
+      ARROW_UP: "arrowup",
+      ARROW_DOWN: "arrowdown",
+      ARROW_LEFT: "arrowleft",
+      ARROW_RIGHT: "arrowright"
+    };
+
+    const STORAGE_KEY = "station-layout-builder.version-zero";
+
+    /* ============ SECTION: SCHEMA ============ */
+    const SCHEMA_VERSION = 1;
+
+    function schema_createEmptyLayout() {
+      return {
+        schemaVersion: SCHEMA_VERSION,
+        appVersion: APP_VERSION,
+        brand: {
+          name: BRAND.name,
+          logo: BRAND.logo,
+          icon: BRAND.icon,
+          enabled: BRAND.enabled
+        },
+        items: []
+      };
+    }
+
+    function schema_normalizeItem(item) {
+      const fallback = PALETTE_ITEMS[0];
+
+      return {
+        id: item.id || util_id("item"),
+        sourceId: item.sourceId || fallback.id,
+        name: item.name || fallback.name,
+        notes: item.notes || "",
+        type: item.type || fallback.type,
+        x: util_number(item.x, 40),
+        y: util_number(item.y, 40),
+        w: Math.max(20, util_number(item.w, fallback.w)),
+        h: Math.max(20, util_number(item.h, fallback.h)),
+        rotation: util_number(item.rotation, 0),
+        z: util_number(item.z, 1)
+      };
+    }
+
+    function schema_normalizeLayout(layout) {
+      const base = schema_createEmptyLayout();
+
+      if (!layout || typeof layout !== "object") {
+        return base;
+      }
+
+      return {
+        schemaVersion: SCHEMA_VERSION,
+        appVersion: layout.appVersion || APP_VERSION,
+        brand: Object.assign(base.brand, layout.brand || {}),
+        items: Array.isArray(layout.items)
+          ? layout.items.map(schema_normalizeItem)
+          : []
+      };
+    }
+
+    /* ============ SECTION: STATE ============ */
+    const STATE = {
+      schemaVersion: SCHEMA_VERSION,
+      appVersion: APP_VERSION,
+      brand: {
+        name: BRAND.name,
+        logo: BRAND.logo,
+        icon: BRAND.icon,
+        enabled: BRAND.enabled
+      },
+      items: [],
+      selectedId: null,
+      revision: 0,
+      status: "Ready",
+      ui: {
+        snapToGrid: FEATURE_FLAGS.snapToGrid,
+        dragging: null,
+        storageMode: "local"
+      }
+    };
+
+    /* ============ SECTION: BUS ============ */
+    const Bus = {
+      events: new Map(),
+
+      on(eventName, callback) {
+        if (!this.events.has(eventName)) {
+          this.events.set(eventName, new Set());
+        }
+
+        this.events.get(eventName).add(callback);
+
+        return () => this.off(eventName, callback);
+      },
+
+      off(eventName, callback) {
+        const callbacks = this.events.get(eventName);
+        if (!callbacks) return;
+        callbacks.delete(callback);
+      },
+
+      emit(eventName, payload) {
+        const callbacks = this.events.get(eventName);
+        if (!callbacks) return;
+
+        callbacks.forEach((callback) => {
+          callback(payload);
+        });
+      }
+    };
+
+    /* ============ SECTION: STORAGE ============ */
+    const MemoryStore = {};
+
+    function storage_getStorage() {
+      if (!FEATURE_FLAGS.localStorage) {
+        STATE.ui.storageMode = "memory";
+        return null;
+      }
+
+      try {
+        const testKey = "__station_builder_test__";
+        window.localStorage.setItem(testKey, "1");
+        window.localStorage.removeItem(testKey);
+        return window.localStorage;
+      } catch {
+        STATE.ui.storageMode = "memory";
+        return null;
+      }
+    }
+
+    function storage_isQuotaError(error) {
+      return error &&
+        (
+          error.name === "QuotaExceededError" ||
+          error.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+          error.code === 22 ||
+          error.code === 1014
+        );
+    }
+
+    function storage_save(options = {}) {
+      const shouldAnnounce = options.announce === true;
+
+      const layout = {
+        schemaVersion: STATE.schemaVersion,
+        appVersion: STATE.appVersion,
+        brand: STATE.brand,
+        items: STATE.items
+      };
+
+      const payload = JSON.stringify(layout);
+      const storage = storage_getStorage();
+
+      if (!storage) {
+        MemoryStore[STORAGE_KEY] = payload;
+
+        if (shouldAnnounce) {
+          action_setStatus(COPY.storageUnavailable);
+        }
+
+        return false;
+      }
+
+      try {
+        storage.setItem(STORAGE_KEY, payload);
+
+        if (shouldAnnounce) {
+          action_setStatus(COPY.storageSaved);
+        }
+
+        return true;
+      } catch (error) {
+        if (storage_isQuotaError(error)) {
+          action_setStatus(COPY.storageFull);
+          return false;
+        }
+
+        action_setStatus(COPY.storageUnavailable);
+        return false;
+      }
+    }
+
+    function storage_load() {
+      const storage = storage_getStorage();
+      let raw = null;
+
+      if (storage) {
+        raw = storage.getItem(STORAGE_KEY);
+      } else {
+        raw = MemoryStore[STORAGE_KEY] || null;
+      }
+
+      if (!raw) return schema_createEmptyLayout();
+
+      try {
+        return schema_normalizeLayout(JSON.parse(raw));
+      } catch {
+        return schema_createEmptyLayout();
+      }
+    }
+
+    /* ============ SECTION: SELECTORS ============ */
+    function select_selectedItem() {
+      return STATE.items.find((item) => item.id === STATE.selectedId) || null;
+    }
+
+    function select_itemById(id) {
+      return STATE.items.find((item) => item.id === id) || null;
+    }
+
+    function select_paletteItem(id) {
+      return PALETTE_ITEMS.find((item) => item.id === id) || null;
+    }
+
+    function select_itemType(id) {
+      return ITEM_TYPES.find((type) => type.id === id) || ITEM_TYPES[0];
+    }
+
+    /* ============ SECTION: ACTIONS ============ */
+    function action_commit(reason) {
+      STATE.revision += 1;
+      Bus.emit("state:changed", { reason, revision: STATE.revision });
+    }
+
+    function action_setStatus(message) {
+      STATE.status = message;
+      action_commit("status");
+    }
+
+    function action_hydrate(layout) {
+      const normalized = schema_normalizeLayout(layout);
+
+      STATE.schemaVersion = normalized.schemaVersion;
+      STATE.appVersion = normalized.appVersion;
+      STATE.brand = normalized.brand;
+      STATE.items = normalized.items;
+      STATE.selectedId = null;
+
+      action_commit("hydrate");
+    }
+
+    function action_addItemFromPalette(sourceId, x, y) {
+      const source = select_paletteItem(sourceId);
+      if (!source) return;
+
+      const item = schema_normalizeItem({
+        id: util_id("item"),
+        sourceId: source.id,
+        name: source.name,
+        notes: "",
+        type: source.type,
+        x,
+        y,
+        w: source.w,
+        h: source.h,
+        rotation: 0,
+        z: STATE.items.length + 1
+      });
+
+      util_clampItem(item);
+
+      STATE.items.push(item);
+      STATE.selectedId = item.id;
+
+      action_setStatus("Placed " + item.name);
+      storage_save();
+      action_commit("add-item");
+    }
+
+    function action_selectItem(id) {
+      STATE.selectedId = id;
+      action_commit("select-item");
+    }
+
+    function action_clearSelection() {
+      STATE.selectedId = null;
+      action_commit("clear-selection");
+    }
+
+    function action_updateSelected(patch) {
+      const item = select_selectedItem();
+      if (!item) return;
+
+      Object.assign(item, patch);
+      util_clampItem(item);
+
+      action_commit("update-selected");
+      storage_save();
+    }
+
+    function action_deleteSelected() {
+      if (!STATE.selectedId) return;
+
+      STATE.items = STATE.items.filter((item) => item.id !== STATE.selectedId);
+      STATE.selectedId = null;
+
+      action_setStatus("Deleted item");
+      storage_save();
+      action_commit("delete-selected");
+    }
+
+    function action_duplicateSelected() {
+      const item = select_selectedItem();
+      if (!item) return;
+
+      const copy = schema_normalizeItem({
+        ...item,
+        id: util_id("item"),
+        name: item.name + " Copy",
+        x: item.x + 20,
+        y: item.y + 20,
+        z: STATE.items.length + 1
+      });
+
+      util_clampItem(copy);
+
+      STATE.items.push(copy);
+      STATE.selectedId = copy.id;
+
+      action_setStatus("Duplicated item");
+      storage_save();
+      action_commit("duplicate-selected");
+    }
+
+    function action_rotateSelected() {
+      const item = select_selectedItem();
+      if (!item) return;
+
+      const oldWidth = item.w;
+      item.w = item.h;
+      item.h = oldWidth;
+      item.rotation = item.rotation === 90 ? 0 : 90;
+
+      util_clampItem(item);
+
+      action_setStatus("Rotated " + item.name);
+      storage_save();
+      action_commit("rotate-selected");
+    }
+
+    function action_importJson(raw) {
+      if (!FEATURE_FLAGS.importExport) return;
+
+      try {
+        const parsed = JSON.parse(raw);
+        action_hydrate(parsed);
+        action_setStatus(COPY.storageLoaded);
+        storage_save();
+      } catch {
+        action_setStatus(COPY.importError);
+      }
+    }
+
+    function action_exportJson() {
+      if (!FEATURE_FLAGS.importExport) return;
+
+      const layout = {
+        schemaVersion: STATE.schemaVersion,
+        appVersion: STATE.appVersion,
+        brand: STATE.brand,
+        items: STATE.items
+      };
+
+      DOM.jsonBox.value = JSON.stringify(layout, null, 2);
+      action_setStatus(COPY.exportReady);
+    }
+
+    /* ============ SECTION: RENDER ============ */
+    const DOM = {
+      brandHeader: document.getElementById("brandHeader"),
+      leftPanel: document.getElementById("leftPanel"),
+      mainPanel: document.getElementById("mainPanel"),
+      rightPanel: document.getElementById("rightPanel"),
+      statusBar: document.getElementById("statusBar"),
+      jsonBox: null,
+      canvas: null
+    };
+
+    let renderPending = false;
+
+    function render_schedule() {
+      if (renderPending) return;
+
+      renderPending = true;
+
+      requestAnimationFrame(() => {
+        renderPending = false;
+        render_all();
+      });
+    }
+
+    function render_all() {
+      render_brandHeader(STATE, DOM.brandHeader);
+      render_leftPanel(STATE, DOM.leftPanel);
+      render_mainPanel(STATE, DOM.mainPanel);
+      render_rightPanel(STATE, DOM.rightPanel);
+      render_status(STATE, DOM.statusBar);
+      render_documentMeta(STATE);
+    }
+
+    function render_brandHeader(state, container) {
+      container.textContent = "";
+
+      const brand = document.createElement("div");
+      brand.className = "brand";
+
+      const logo = document.createElement("div");
+      logo.className = "brand-logo-placeholder";
+      logo.textContent = COPY.logo;
+
+      const title = document.createElement("h1");
+      title.className = "brand-title";
+      title.textContent = FEATURE_FLAGS.branding && state.brand.enabled ? state.brand.name : COPY.appName;
+
+      brand.append(logo, title);
+
+      const toolbar = document.createElement("div");
+      toolbar.className = "toolbar";
+
+      const save = render_button("saveBtn", COPY.save, "primary");
+      const load = render_button("loadBtn", COPY.load);
+      const print = render_button("printBtn", COPY.print);
+
+      toolbar.append(save, load, print);
+      container.append(brand, toolbar);
+    }
+
+    function render_leftPanel(state, container) {
+      container.textContent = "";
+
+      const paletteSection = render_section(COPY.sectionPalette);
+      const palette = document.createElement("div");
+      palette.className = "palette";
+      palette.id = "palette";
+
+      render_palette(state, palette);
+      paletteSection.appendChild(palette);
+      container.appendChild(paletteSection);
+
+      if (FEATURE_FLAGS.importExport) {
+        const storageSection = render_section(COPY.sectionStorage);
+
+        const exportBtn = render_button("exportBtn", COPY.exportJson);
+        const importBtn = render_button("importBtn", COPY.importJson);
+
+        const field = document.createElement("div");
+        field.className = "field";
+
+        const label = document.createElement("label");
+        label.htmlFor = "jsonBox";
+        label.textContent = COPY.layoutJson;
+
+        const textarea = document.createElement("textarea");
+        textarea.id = "jsonBox";
+        textarea.className = "json-box";
+
+        field.append(label, textarea);
+        storageSection.append(exportBtn, importBtn, field);
+        container.appendChild(storageSection);
+
+        DOM.jsonBox = textarea;
+      }
+    }
+
+    function render_mainPanel(state, container) {
+      container.textContent = "";
+
+      const wrap = document.createElement("div");
+      wrap.className = "canvas-wrap";
+
+      const canvas = document.createElement("div");
+      canvas.id = "canvas";
+      canvas.className = "canvas";
+      canvas.tabIndex = 0;
+      canvas.setAttribute("role", "application");
+      canvas.setAttribute("aria-label", "Station layout canvas");
+
+      render_canvas(state, canvas);
+
+      const note = document.createElement("p");
+      note.className = "print-note";
+      note.textContent = COPY.printNote;
+
+      wrap.append(canvas, note);
+      container.appendChild(wrap);
+
+      DOM.canvas = canvas;
+    }
+
+    function render_rightPanel(state, container) {
+      container.textContent = "";
+
+      const section = render_section(COPY.sectionSelectedItem);
+      const editor = document.createElement("div");
+      editor.id = "selectedEditor";
+
+      render_selectedEditor(state, editor);
+
+      section.appendChild(editor);
+      container.appendChild(section);
+    }
+
+    function render_palette(state, container) {
+      container.textContent = "";
+
+      PALETTE_ITEMS.forEach((item) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "palette-item";
+        button.dataset.paletteId = item.id;
+
+        const name = document.createElement("span");
+        name.className = "palette-item-name";
+        name.textContent = item.name;
+
+        const meta = document.createElement("span");
+        meta.className = "palette-item-meta";
+        meta.textContent = `${select_itemType(item.type).label} · ${item.w}×${item.h}`;
+
+        button.append(name, meta);
+        container.appendChild(button);
+      });
+    }
+
+    function render_canvas(state, container) {
+      container.textContent = "";
+      container.dataset.state = state.items.length === 0 ? "empty" : "ready";
+      container.dataset.emptyText = COPY.emptyCanvas;
+
+      state.items.forEach((item) => {
+        const el = document.createElement("div");
+        el.className = "canvas-item";
+        el.dataset.itemId = item.id;
+        el.dataset.type = item.type;
+        el.dataset.selected = String(item.id === state.selectedId);
+        el.dataset.dragging = String(state.ui.dragging === item.id);
+        el.tabIndex = item.id === state.selectedId ? 0 : -1;
+
+        el.style.width = item.w + "px";
+        el.style.height = item.h + "px";
+        el.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)`;
+        el.style.zIndex = String(item.z);
+
+        const name = document.createElement("div");
+        name.className = "item-name";
+        name.textContent = item.name;
+
+        const notes = document.createElement("div");
+        notes.className = "item-notes";
+        notes.textContent = item.notes;
+
+        el.append(name, notes);
+        container.appendChild(el);
+      });
+    }
+
+    function render_selectedEditor(state, container) {
+      container.textContent = "";
+
+      const item = select_selectedItem();
+
+      if (!item) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = COPY.noSelection;
+        container.appendChild(empty);
+        return;
+      }
+
+      const meta = document.createElement("p");
+      meta.className = "metadata-line";
+      meta.textContent = `Rotation: ${item.rotation}°`;
+
+      const nameField = render_field(COPY.name, "editName", "input", item.name);
+      const notesField = render_field(COPY.notesTooling, "editNotes", "textarea", item.notes);
+
+      const typeField = document.createElement("div");
+      typeField.className = "field";
+
+      const typeLabel = document.createElement("label");
+      typeLabel.htmlFor = "editType";
+      typeLabel.textContent = COPY.type;
+
+      const typeSelect = document.createElement("select");
+      typeSelect.id = "editType";
+
+      ITEM_TYPES.forEach((type) => {
+        const option = document.createElement("option");
+        option.value = type.id;
+        option.textContent = type.label;
+        option.selected = item.type === type.id;
+        typeSelect.appendChild(option);
+      });
+
+      typeField.append(typeLabel, typeSelect);
+
+      const sizeRow = document.createElement("div");
+      sizeRow.className = "field-row";
+      sizeRow.append(
+        render_field(COPY.width, "editW", "input", item.w, "number"),
+        render_field(COPY.height, "editH", "input", item.h, "number")
+      );
+
+      const positionRow = document.createElement("div");
+      positionRow.className = "field-row";
+      positionRow.append(
+        render_field(COPY.x, "editX", "input", Math.round(item.x), "number"),
+        render_field(COPY.y, "editY", "input", Math.round(item.y), "number")
+      );
+
+      const actions = document.createElement("div");
+      actions.className = "actions-three";
+
+      actions.append(
+        render_button("rotateBtn", COPY.rotate),
+        render_button("duplicateBtn", COPY.duplicate),
+        render_button("deleteBtn", COPY.delete, "danger")
+      );
+
+      container.append(meta, nameField, notesField, typeField, sizeRow, positionRow, actions);
+    }
+
+    function render_status(state, container) {
+      container.textContent = state.status;
+    }
+
+    function render_documentMeta(state) {
+      document.title = FEATURE_FLAGS.branding && state.brand.enabled ? state.brand.name : COPY.appName;
+    }
+
+    function render_section(titleText) {
+      const section = document.createElement("section");
+      section.className = "section";
+
+      const title = document.createElement("h2");
+      title.className = "section-title";
+      title.textContent = titleText;
+
+      section.appendChild(title);
+      return section;
+    }
+
+    function render_button(id, text, variant) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.id = id;
+      button.textContent = text;
+
+      if (variant) {
+        button.className = variant;
+      }
+
+      return button;
+    }
+
+    function render_field(labelText, id, elementType, value, inputType = "text") {
+      const field = document.createElement("div");
+      field.className = "field";
+
+      const label = document.createElement("label");
+      label.htmlFor = id;
+      label.textContent = labelText;
+
+      let input;
+
+      if (elementType === "textarea") {
+        input = document.createElement("textarea");
+      } else {
+        input = document.createElement("input");
+        input.type = inputType;
+      }
+
+      input.id = id;
+      input.value = value;
+
+      field.append(label, input);
+      return field;
+    }
+
+    /* ============ SECTION: POINTER ============ */
+    const POINTER = {
+      mode: null,
+      pointerId: null,
+      captureTarget: null,
+      dragNode: null,
+      itemId: null,
+      paletteId: null,
+      canvasRect: null,
+      startClientX: 0,
+      startClientY: 0,
+      startX: 0,
+      startY: 0
+    };
+
+    function pointer_down(event) {
+      if (event.isPrimary === false) return;
+      if (event.button !== undefined && event.button !== 0) return;
+
+      const paletteEl = event.target.closest("[data-palette-id]");
+      const itemEl = event.target.closest("[data-item-id]");
+
+      if (!paletteEl && !itemEl) return;
+
+      event.preventDefault();
+
+      const captureTarget = itemEl || paletteEl;
+
+      POINTER.pointerId = event.pointerId;
+      POINTER.captureTarget = captureTarget;
+      POINTER.canvasRect = DOM.canvas ? DOM.canvas.getBoundingClientRect() : null;
+      POINTER.startClientX = event.clientX;
+      POINTER.startClientY = event.clientY;
+      POINTER.dragNode = itemEl || null;
+
+      if (paletteEl) {
+        POINTER.mode = "palette";
+        POINTER.paletteId = paletteEl.dataset.paletteId;
+      }
+
+      if (itemEl) {
+        const item = select_itemById(itemEl.dataset.itemId);
+        if (!item) return;
+
+        POINTER.mode = "move";
+        POINTER.itemId = item.id;
+        POINTER.startX = item.x;
+        POINTER.startY = item.y;
+
+        STATE.selectedId = item.id;
+        STATE.ui.dragging = item.id;
+        action_commit("pointer-select");
+      }
+
+      if (captureTarget && captureTarget.setPointerCapture) {
+        captureTarget.setPointerCapture(event.pointerId);
+      }
+    }
+
+    function pointer_move(event) {
+      if (!POINTER.mode || event.pointerId !== POINTER.pointerId) return;
+
+      event.preventDefault();
+
+      if (POINTER.mode === "move") {
+        const item = select_itemById(POINTER.itemId);
+        if (!item) return;
+
+        const dx = event.clientX - POINTER.startClientX;
+        const dy = event.clientY - POINTER.startClientY;
+
+        item.x = POINTER.startX + dx;
+        item.y = POINTER.startY + dy;
+
+        if (STATE.ui.snapToGrid) {
+          item.x = util_snap(item.x);
+          item.y = util_snap(item.y);
+        }
+
+        util_clampItem(item);
+
+        if (POINTER.dragNode) {
+          POINTER.dragNode.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)`;
+        }
+      }
+    }
+
+    function pointer_up(event) {
+      if (!POINTER.mode || event.pointerId !== POINTER.pointerId) return;
+
+      event.preventDefault();
+
+      if (POINTER.mode === "palette") {
+        const rect = POINTER.canvasRect;
+        if (rect) {
+          const x = event.clientX - rect.left;
+          const y = event.clientY - rect.top;
+          action_addItemFromPalette(POINTER.paletteId, x, y);
+        }
+      }
+
+      if (POINTER.mode === "move") {
+        action_setStatus("Moved item");
+        storage_save();
+        action_commit("move-complete");
+      }
+
+      pointer_cleanup(event);
+    }
+
+    function pointer_cancel(event) {
+      pointer_cleanup(event);
+    }
+
+    function pointer_cleanup(event) {
+      try {
+        if (POINTER.captureTarget && POINTER.pointerId !== null && POINTER.captureTarget.releasePointerCapture) {
+          POINTER.captureTarget.releasePointerCapture(POINTER.pointerId);
+        }
+      } catch {}
+
+      POINTER.mode = null;
+      POINTER.pointerId = null;
+      POINTER.captureTarget = null;
+      POINTER.dragNode = null;
+      POINTER.itemId = null;
+      POINTER.paletteId = null;
+      POINTER.canvasRect = null;
+
+      STATE.ui.dragging = null;
+      action_commit("pointer-cleanup");
+    }
+
+    /* ============ SECTION: HANDLERS ============ */
+    function handle_click(event) {
+      if (event.target.id === "saveBtn") storage_save({ announce: true });
+
+      if (event.target.id === "loadBtn") {
+        action_hydrate(storage_load());
+        action_setStatus(COPY.storageLoaded);
+      }
+
+      if (event.target.id === "printBtn" && FEATURE_FLAGS.print) {
+        window.print();
+      }
+
+      if (event.target.id === "rotateBtn") action_rotateSelected();
+      if (event.target.id === "duplicateBtn") action_duplicateSelected();
+      if (event.target.id === "deleteBtn") action_deleteSelected();
+
+      if (event.target.id === "exportBtn") action_exportJson();
+      if (event.target.id === "importBtn") action_importJson(DOM.jsonBox ? DOM.jsonBox.value : "");
+
+      const canvasItem = event.target.closest("[data-item-id]");
+
+      if (canvasItem) {
+        action_selectItem(canvasItem.dataset.itemId);
+        return;
+      }
+
+      if (DOM.canvas && event.target === DOM.canvas) {
+        action_clearSelection();
+      }
+    }
+
+    function handle_input(event) {
+      const item = select_selectedItem();
+      if (!item) return;
+
+      if (event.target.id === "editName") {
+        action_updateSelected({ name: event.target.value });
+      }
+
+      if (event.target.id === "editNotes") {
+        action_updateSelected({ notes: event.target.value });
+      }
+
+      if (event.target.id === "editType") {
+        action_updateSelected({ type: event.target.value });
+      }
+
+      if (event.target.id === "editW") {
+        action_updateSelected({ w: Number(event.target.value) });
+      }
+
+      if (event.target.id === "editH") {
+        action_updateSelected({ h: Number(event.target.value) });
+      }
+
+      if (event.target.id === "editX") {
+        action_updateSelected({ x: Number(event.target.value) });
+      }
+
+      if (event.target.id === "editY") {
+        action_updateSelected({ y: Number(event.target.value) });
+      }
+    }
+
+    /* ============ SECTION: KEYBOARD ============ */
+    function keyboard_key(event) {
+      if (!FEATURE_FLAGS.keyboardShortcuts) return;
+
+      const activeTag = document.activeElement.tagName;
+      const key = keyboard_getKey(event);
+
+      if (activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT") {
+        return;
+      }
+
+      if (key === KEYS.SAVE) {
+        event.preventDefault();
+        storage_save({ announce: true });
+        return;
+      }
+
+      if (key === KEYS.PRINT && FEATURE_FLAGS.print) {
+        event.preventDefault();
+        window.print();
+        return;
+      }
+
+      if (key === KEYS.DUPLICATE) {
+        event.preventDefault();
+        action_duplicateSelected();
+        return;
+      }
+
+      if (key === KEYS.ROTATE) {
+        action_rotateSelected();
+        return;
+      }
+
+      if (key === KEYS.DELETE || key === KEYS.BACKSPACE) {
+        action_deleteSelected();
+        return;
+      }
+
+      if (
+        key === KEYS.ARROW_UP ||
+        key === KEYS.ARROW_DOWN ||
+        key === KEYS.ARROW_LEFT ||
+        key === KEYS.ARROW_RIGHT
+      ) {
+        keyboard_nudge(event, key);
+      }
+    }
+
+    function keyboard_getKey(event) {
+      const parts = [];
+
+      if (event.ctrlKey || event.metaKey) {
+        parts.push("ctrl");
+      }
+
+      parts.push(event.key.toLowerCase());
+
+      return parts.join("+");
+    }
+
+    function keyboard_nudge(event, key) {
+      const item = select_selectedItem();
+      if (!item) return;
+
+      event.preventDefault();
+
+      const amount = event.shiftKey ? 10 : 1;
+
+      if (key === KEYS.ARROW_UP) item.y -= amount;
+      if (key === KEYS.ARROW_DOWN) item.y += amount;
+      if (key === KEYS.ARROW_LEFT) item.x -= amount;
+      if (key === KEYS.ARROW_RIGHT) item.x += amount;
+
+      util_clampItem(item);
+
+      action_commit("nudge");
+      storage_save();
+    }
+
+    /* ============ SECTION: UTILITIES ============ */
+    function util_id(prefix) {
+      return prefix + "_" + Math.random().toString(36).slice(2, 10);
+    }
+
+    function util_number(value, fallback) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number : fallback;
+    }
+
+    function util_clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function util_snap(value) {
+      return Math.round(value / GRID_SIZE) * GRID_SIZE;
+    }
+
+    function util_clampItem(item) {
+      item.w = Math.max(20, util_number(item.w, 20));
+      item.h = Math.max(20, util_number(item.h, 20));
+      item.x = util_clamp(util_number(item.x, 0), 0, SCALE.canvas.w - item.w);
+      item.y = util_clamp(util_number(item.y, 0), 0, SCALE.canvas.h - item.h);
+    }
+
+    /* ============ SECTION: INIT ============ */
+    function init() {
+      action_hydrate(storage_load());
+
+      document.addEventListener("click", handle_click);
+      document.addEventListener("input", handle_input);
+
+      if (FEATURE_FLAGS.keyboardShortcuts) {
+        document.addEventListener("keydown", keyboard_key);
+      }
+
+      document.addEventListener("pointerdown", pointer_down);
+      document.addEventListener("pointermove", pointer_move);
+      document.addEventListener("pointerup", pointer_up);
+      document.addEventListener("pointercancel", pointer_cancel);
+
+      if (FEATURE_FLAGS.selftest) {
+        console.info("Selftest scaffold is enabled, but no selftest runner is implemented in Version Zero.");
+      }
+
+      Bus.on("state:changed", render_schedule);
+
+      render_all();
+    }
+
+    init();
+  </script>
+</body>
+</html>
