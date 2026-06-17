@@ -32,16 +32,28 @@
   <style>
     /* ============ SECTION: CSS TOKENS ============ */
     :root {
-      --color-bg: #f4f4f4;
+      --color-bg: #eef1f6;
       --color-surface: #ffffff;
-      --color-border: #d0d0d0;
-      --color-text: #222222;
-      --color-muted: #666666;
-      --color-primary: #222222;
-      --color-danger: #b00020;
-      --color-grid: rgba(0, 0, 0, 0.08);
+      --color-surface-2: #f7f9fc;
+      --color-border: #e1e5ec;
+      --color-border-strong: #c6cdd8;
+      --color-text: #1b2330;
+      --color-muted: #5d6b7d;
+      --color-primary: #2f6fed;
+      --color-primary-hover: #2860d4;
+      --color-primary-soft: rgba(47, 111, 237, 0.12);
+      --color-danger: #d23b3b;
+      --color-danger-soft: rgba(210, 59, 59, 0.10);
+      --color-grid: rgba(27, 35, 48, 0.06);
 
-      --font-base: Arial, Helvetica, sans-serif;
+      /* Item type accents (kept in sync with palette swatches) */
+      --type-pan: #8a93a3;
+      --type-rail: #3b82c4;
+      --type-hot: #e07a4f;
+      --type-note: #e0b73a;
+      --type-block: #7c8595;
+
+      --font-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       --font-size-ui: 14px;
       --font-size-item-name: 13px;
       --font-size-item-notes: 11px;
@@ -51,8 +63,12 @@
       --space-md: 14px;
       --space-lg: 20px;
 
-      --radius-ui: 6px;
-      --radius-item: 4px;
+      --radius-ui: 8px;
+      --radius-item: 6px;
+
+      --shadow-sm: 0 1px 2px rgba(27, 35, 48, 0.06), 0 1px 3px rgba(27, 35, 48, 0.10);
+      --shadow-md: 0 2px 6px rgba(27, 35, 48, 0.08), 0 4px 12px rgba(27, 35, 48, 0.10);
+      --shadow-lg: 0 8px 24px rgba(27, 35, 48, 0.16);
 
       --canvas-w: 1800px;
       --canvas-h: 1200px;
@@ -97,16 +113,26 @@
     }
 
     button {
-      border: 1px solid var(--color-border);
+      border: 1px solid var(--color-border-strong);
       background: var(--color-surface);
       color: var(--color-text);
       border-radius: var(--radius-ui);
       padding: var(--space-sm) var(--space-md);
+      font-weight: 600;
       cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: background 120ms ease, border-color 120ms ease,
+        box-shadow 120ms ease, transform 80ms ease;
     }
 
     button:hover {
       border-color: var(--color-primary);
+      background: var(--color-surface-2);
+    }
+
+    button:active {
+      transform: translateY(1px);
+      box-shadow: none;
     }
 
     button:focus-visible,
@@ -121,7 +147,12 @@
     button.primary {
       background: var(--color-primary);
       border-color: var(--color-primary);
-      color: var(--color-surface);
+      color: #ffffff;
+    }
+
+    button.primary:hover {
+      background: var(--color-primary-hover);
+      border-color: var(--color-primary-hover);
     }
 
     button.danger {
@@ -129,15 +160,27 @@
       border-color: var(--color-danger);
     }
 
+    button.danger:hover {
+      background: var(--color-danger-soft);
+    }
+
     input,
     select,
     textarea {
       width: 100%;
-      border: 1px solid var(--color-border);
+      border: 1px solid var(--color-border-strong);
       border-radius: var(--radius-ui);
       background: var(--color-surface);
       color: var(--color-text);
       padding: var(--space-sm);
+      transition: border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px var(--color-primary-soft);
     }
 
     textarea {
@@ -158,15 +201,16 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 var(--space-md);
+      padding: 0 var(--space-lg);
       background: var(--color-surface);
       border-bottom: 1px solid var(--color-border);
+      box-shadow: var(--shadow-sm);
       z-index: var(--z-panel);
     }
 
     .sidebar,
     .editor-panel {
-      background: var(--color-surface);
+      background: var(--color-surface-2);
       overflow: auto;
       padding: var(--space-md);
     }
@@ -188,11 +232,22 @@
       grid-column: 1 / 4;
       display: flex;
       align-items: center;
-      padding: 0 var(--space-md);
+      gap: var(--space-sm);
+      padding: 0 var(--space-lg);
       border-top: 1px solid var(--color-border);
       background: var(--color-surface);
       color: var(--color-muted);
       font-size: 12px;
+    }
+
+    .status-bar::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      box-shadow: 0 0 0 3px var(--color-primary-soft);
+      flex: none;
     }
 
     .section {
@@ -202,9 +257,10 @@
     .section-title {
       margin: 0 0 var(--space-sm);
       color: var(--color-muted);
-      font-size: 12px;
+      font-size: 11px;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.06em;
     }
 
     .brand {
@@ -214,19 +270,24 @@
     }
 
     .brand-logo-placeholder {
-      width: 32px;
-      height: 32px;
-      border: 1px dashed var(--color-border);
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-ui);
+      background: linear-gradient(135deg, var(--color-primary), #5b8def);
       display: grid;
       place-items: center;
-      color: var(--color-muted);
-      font-size: 11px;
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      box-shadow: var(--shadow-sm);
     }
 
     .brand-title {
       margin: 0;
       font-size: 16px;
       font-weight: 700;
+      letter-spacing: -0.01em;
     }
 
     .toolbar {
@@ -242,11 +303,39 @@
     }
 
     .palette-item {
+      position: relative;
       text-align: left;
       width: 100%;
+      padding-left: calc(var(--space-md) + 6px);
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
+    }
+
+    .palette-item::before {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 8px;
+      bottom: 8px;
+      width: 4px;
+      border-radius: 2px;
+      background: var(--type-color, var(--color-border-strong));
+    }
+
+    .palette-item[data-type="pan"] { --type-color: var(--type-pan); }
+    .palette-item[data-type="rail"] { --type-color: var(--type-rail); }
+    .palette-item[data-type="hot"] { --type-color: var(--type-hot); }
+    .palette-item[data-type="note"] { --type-color: var(--type-note); }
+    .palette-item[data-type="block"] { --type-color: var(--type-block); }
+
+    .palette-item:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .palette-item:active {
+      transform: translateY(0);
     }
 
     .palette-item-name {
@@ -270,12 +359,14 @@
       position: relative;
       width: var(--canvas-w);
       height: var(--canvas-h);
-      border: 1px solid var(--color-border);
+      border: 1px solid var(--color-border-strong);
+      border-radius: var(--radius-ui);
       background:
         linear-gradient(90deg, var(--color-grid) 1px, transparent 1px),
         linear-gradient(var(--color-grid) 1px, transparent 1px),
         var(--color-surface);
       background-size: var(--grid-size) var(--grid-size);
+      box-shadow: var(--shadow-md);
       overflow: hidden;
       contain: layout paint;
       touch-action: none;
@@ -289,8 +380,10 @@
       inset: var(--space-md);
       display: grid;
       place-items: center;
-      border: 1px dashed var(--color-border);
+      border: 2px dashed var(--color-border-strong);
+      border-radius: var(--radius-ui);
       color: var(--color-muted);
+      font-size: 15px;
       pointer-events: none;
     }
 
@@ -300,45 +393,59 @@
       display: grid;
       place-items: center;
       text-align: center;
-      border: 1px solid var(--color-text);
+      border: 1px solid var(--type-color, var(--color-border-strong));
+      border-left: 4px solid var(--type-color, var(--color-border-strong));
       border-radius: var(--radius-item);
-      background: #e6e6e6;
+      background: var(--type-fill, #eef0f3);
+      box-shadow: var(--shadow-sm);
       padding: var(--space-xs);
       cursor: move;
       overflow: hidden;
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
+      transition: box-shadow 120ms ease;
+    }
+
+    .canvas-item:hover {
+      box-shadow: var(--shadow-md);
     }
 
     .canvas-item[data-type="pan"] {
-      background: #dddddd;
+      --type-color: var(--type-pan);
+      --type-fill: #eceef2;
     }
 
     .canvas-item[data-type="rail"] {
-      background: #d9e7f5;
+      --type-color: var(--type-rail);
+      --type-fill: #e3eef9;
     }
 
     .canvas-item[data-type="hot"] {
-      background: #f4ded4;
+      --type-color: var(--type-hot);
+      --type-fill: #fbe9df;
     }
 
     .canvas-item[data-type="note"] {
-      background: #fff4cc;
+      --type-color: var(--type-note);
+      --type-fill: #fdf3d2;
     }
 
     .canvas-item[data-type="block"] {
-      background: #e6e6e6;
+      --type-color: var(--type-block);
+      --type-fill: #ebedf1;
     }
 
     .canvas-item[data-selected="true"] {
       z-index: var(--z-selected);
       outline: 3px solid var(--color-primary);
       outline-offset: 2px;
+      box-shadow: var(--shadow-lg);
     }
 
     .canvas-item[data-dragging="true"] {
-      opacity: 0.82;
+      opacity: 0.9;
+      box-shadow: var(--shadow-lg);
       will-change: transform;
     }
 
@@ -383,8 +490,9 @@
 
     .empty-state,
     .error-state {
-      border: 1px dashed var(--color-border);
+      border: 1px dashed var(--color-border-strong);
       border-radius: var(--radius-ui);
+      background: var(--color-surface);
       padding: var(--space-md);
       color: var(--color-muted);
       line-height: 1.4;
@@ -393,6 +501,7 @@
     .error-state {
       color: var(--color-danger);
       border-color: var(--color-danger);
+      background: var(--color-danger-soft);
     }
 
     .json-box {
@@ -1092,6 +1201,7 @@
         button.type = "button";
         button.className = "palette-item";
         button.dataset.paletteId = item.id;
+        button.dataset.type = item.type;
 
         const name = document.createElement("span");
         name.className = "palette-item-name";
