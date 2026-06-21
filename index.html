@@ -540,6 +540,9 @@
       print: "Print",
       exportJson: "Export JSON",
       importJson: "Import JSON",
+      clearLayout: "Clear Layout",
+      clearConfirm: "Clear the entire layout? This cannot be undone.",
+      layoutCleared: "Cleared layout",
       layoutJson: "Layout JSON",
       name: "Name",
       notesTooling: "Notes / Tooling",
@@ -658,7 +661,8 @@
       ui: {
         snapToGrid: FEATURE_FLAGS.snapToGrid,
         dragging: null,
-        storageMode: "local"
+        storageMode: "local",
+        jsonDraft: ""
       }
     };
 
@@ -922,6 +926,15 @@
       action_commit("rotate-selected");
     }
 
+    function action_clearLayout() {
+      STATE.items = [];
+      STATE.selectedId = null;
+
+      action_setStatus(COPY.layoutCleared);
+      storage_save();
+      action_commit("clear-layout");
+    }
+
     function action_importJson(raw) {
       if (!FEATURE_FLAGS.importExport) return;
 
@@ -945,7 +958,7 @@
         items: STATE.items
       };
 
-      DOM.jsonBox.value = JSON.stringify(layout, null, 2);
+      STATE.ui.jsonDraft = JSON.stringify(layout, null, 2);
       action_setStatus(COPY.exportReady);
     }
 
@@ -974,12 +987,45 @@
     }
 
     function render_all() {
+      const focusSnapshot = render_captureFocus();
+
       render_brandHeader(STATE, DOM.brandHeader);
       render_leftPanel(STATE, DOM.leftPanel);
       render_mainPanel(STATE, DOM.mainPanel);
       render_rightPanel(STATE, DOM.rightPanel);
       render_status(STATE, DOM.statusBar);
       render_documentMeta(STATE);
+
+      render_restoreFocus(focusSnapshot);
+    }
+
+    function render_captureFocus() {
+      const active = document.activeElement;
+      if (!active || !active.id) return null;
+
+      const snapshot = { id: active.id };
+
+      if (typeof active.selectionStart === "number") {
+        snapshot.selectionStart = active.selectionStart;
+        snapshot.selectionEnd = active.selectionEnd;
+      }
+
+      return snapshot;
+    }
+
+    function render_restoreFocus(snapshot) {
+      if (!snapshot) return;
+
+      const el = document.getElementById(snapshot.id);
+      if (!el) return;
+
+      el.focus({ preventScroll: true });
+
+      if (typeof snapshot.selectionStart === "number" && typeof el.setSelectionRange === "function") {
+        try {
+          el.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+        } catch {}
+      }
     }
 
     function render_brandHeader(state, container) {
@@ -1026,6 +1072,7 @@
 
         const exportBtn = render_button("exportBtn", COPY.exportJson);
         const importBtn = render_button("importBtn", COPY.importJson);
+        const clearBtn = render_button("clearBtn", COPY.clearLayout, "danger");
 
         const field = document.createElement("div");
         field.className = "field";
@@ -1037,9 +1084,10 @@
         const textarea = document.createElement("textarea");
         textarea.id = "jsonBox";
         textarea.className = "json-box";
+        textarea.value = state.ui.jsonDraft;
 
         field.append(label, textarea);
-        storageSection.append(exportBtn, importBtn, field);
+        storageSection.append(exportBtn, importBtn, clearBtn, field);
         container.appendChild(storageSection);
 
         DOM.jsonBox = textarea;
@@ -1412,7 +1460,13 @@
       if (event.target.id === "deleteBtn") action_deleteSelected();
 
       if (event.target.id === "exportBtn") action_exportJson();
-      if (event.target.id === "importBtn") action_importJson(DOM.jsonBox ? DOM.jsonBox.value : "");
+      if (event.target.id === "importBtn") action_importJson(STATE.ui.jsonDraft);
+
+      if (event.target.id === "clearBtn") {
+        if (window.confirm(COPY.clearConfirm)) {
+          action_clearLayout();
+        }
+      }
 
       const canvasItem = event.target.closest("[data-item-id]");
 
@@ -1427,6 +1481,12 @@
     }
 
     function handle_input(event) {
+      if (event.target.id === "jsonBox") {
+        STATE.ui.jsonDraft = event.target.value;
+        action_commit("json-draft");
+        return;
+      }
+
       const item = select_selectedItem();
       if (!item) return;
 
