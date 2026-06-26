@@ -1028,7 +1028,7 @@
 
   <script>
     /* ============ SECTION: CONFIG ============ */
-    const APP_VERSION = "0.0.0";
+    const APP_VERSION = "0.1.0";
 
     const FEATURE_FLAGS = {
       branding: false,
@@ -1399,7 +1399,7 @@
       STATE.items.push(item);
       STATE.selectedId = item.id;
 
-      action_setStatus("Placed " + item.name);
+      STATE.status = "Placed " + item.name;
       storage_save();
       action_commit("add-item");
     }
@@ -1418,11 +1418,12 @@
       const item = select_selectedItem();
       if (!item) return;
 
-      Object.assign(item, patch);
+      const { id: _id, z: _z, ...safePatch } = patch;
+      Object.assign(item, safePatch);
       util_clampItem(item);
 
-      action_commit("update-selected");
       storage_save();
+      action_commit("update-selected");
     }
 
     function action_deleteSelected() {
@@ -1431,7 +1432,7 @@
       STATE.items = STATE.items.filter((item) => item.id !== STATE.selectedId);
       STATE.selectedId = null;
 
-      action_setStatus("Deleted item");
+      STATE.status = "Deleted item";
       storage_save();
       action_commit("delete-selected");
     }
@@ -1454,7 +1455,7 @@
       STATE.items.push(copy);
       STATE.selectedId = copy.id;
 
-      action_setStatus("Duplicated item");
+      STATE.status = "Duplicated item";
       storage_save();
       action_commit("duplicate-selected");
     }
@@ -1470,7 +1471,7 @@
 
       util_clampItem(item);
 
-      action_setStatus("Rotated " + item.name);
+      STATE.status = "Rotated " + item.name;
       storage_save();
       action_commit("rotate-selected");
     }
@@ -1479,7 +1480,7 @@
       STATE.items = [];
       STATE.selectedId = null;
 
-      action_setStatus(COPY.layoutCleared);
+      STATE.status = COPY.layoutCleared;
       storage_save();
       action_commit("clear-layout");
     }
@@ -1487,7 +1488,7 @@
     function action_toggleSnapToGrid() {
       STATE.ui.snapToGrid = !STATE.ui.snapToGrid;
 
-      action_setStatus(STATE.ui.snapToGrid ? "Snap to Grid on" : "Snap to Grid off");
+      STATE.status = STATE.ui.snapToGrid ? "Snap to Grid on" : "Snap to Grid off";
       action_commit("toggle-snap-to-grid");
     }
 
@@ -1497,7 +1498,7 @@
       try {
         const parsed = JSON.parse(raw);
         action_hydrate(parsed);
-        action_setStatus(COPY.storageLoaded);
+        STATE.status = COPY.storageLoaded;
         storage_save();
       } catch {
         action_setStatus(COPY.importError);
@@ -1658,9 +1659,11 @@
       fileGroup.className = "toolbar-group";
 
       const save = render_button("saveBtn", COPY.save, "primary");
+      save.setAttribute("aria-label", COPY.save);
       render_toolbarButtonIcon(save, "save");
 
       const load = render_button("loadBtn", COPY.load);
+      load.setAttribute("aria-label", COPY.load);
       render_toolbarButtonIcon(load, "load");
 
       fileGroup.append(save, load);
@@ -1674,9 +1677,11 @@
 
       const snapToggle = render_button("snapToggleBtn", COPY.snapToggle, state.ui.snapToGrid ? "primary" : null);
       snapToggle.setAttribute("aria-pressed", String(state.ui.snapToGrid));
+      snapToggle.setAttribute("aria-label", COPY.snapToggle);
       render_toolbarButtonIcon(snapToggle, "snap");
 
       const print = render_button("printBtn", COPY.print);
+      print.setAttribute("aria-label", COPY.print);
       render_toolbarButtonIcon(print, "print");
 
       viewGroup.append(snapToggle, print);
@@ -1828,6 +1833,11 @@
         storageSection.append(actionsGroup, field);
         container.appendChild(storageSection);
 
+        // DOM.jsonBox is reassigned here on every render because render_leftPanel
+        // wipes and recreates the entire panel. All jsonBox interactions are handled
+        // via event delegation (handle_input checks event.target.id === "jsonBox"),
+        // so callers must never cache this reference between renders — it will be
+        // stale after the next render cycle.
         DOM.jsonBox = textarea;
       }
     }
@@ -1980,6 +1990,7 @@
       state.items.forEach((item) => {
         const el = document.createElement("div");
         el.className = "canvas-item";
+        el.id = "canvas-item-" + item.id;
         el.dataset.itemId = item.id;
         el.dataset.type = item.type;
         el.dataset.selected = String(item.id === state.selectedId);
@@ -2336,7 +2347,7 @@
       }
 
       if (POINTER.mode === "move") {
-        action_setStatus("Moved item");
+        STATE.status = "Moved item";
         storage_save();
         action_commit("move-complete");
       }
@@ -2527,8 +2538,8 @@
 
       util_clampItem(item);
 
-      action_commit("nudge");
       storage_save();
+      action_commit("nudge");
     }
 
     /* ============ SECTION: UTILITIES ============ */
@@ -2811,6 +2822,85 @@
         })
       );
 
+      // --- select_paletteItem: returns item by id or null ---
+      const _sp0 = PALETTE_ITEMS[0];
+      check(
+        "select_paletteItem: returns correct item for known id",
+        select_paletteItem(_sp0.id) === _sp0,
+        _sp0.id
+      );
+      check(
+        "select_paletteItem: returns null for unknown id",
+        select_paletteItem("__no_such_item__") === null,
+        "null"
+      );
+
+      // --- action_addItemFromPalette: one commit, one item ---
+      const _revBefore = STATE.revision;
+      const _countBefore = STATE.items.length;
+      action_addItemFromPalette(_sp0.id, 100, 100);
+      const _addedId = STATE.selectedId;
+      check(
+        "action_addItemFromPalette: increments revision by exactly 1",
+        STATE.revision === _revBefore + 1,
+        "delta=" + (STATE.revision - _revBefore)
+      );
+      check(
+        "action_addItemFromPalette: adds exactly one item",
+        STATE.items.length === _countBefore + 1,
+        "count delta=" + (STATE.items.length - _countBefore)
+      );
+      check(
+        "action_addItemFromPalette: selects the new item",
+        _addedId !== null && select_itemById(_addedId) !== null,
+        _addedId
+      );
+
+      // --- select_itemById: finds the item just placed ---
+      check(
+        "select_itemById: finds item by id after placement",
+        select_itemById(_addedId) !== null &&
+          select_itemById(_addedId).sourceId === _sp0.id,
+        _addedId
+      );
+
+      // --- action_rotateSelected: swaps w/h, single commit ---
+      const _rotItem = select_itemById(_addedId);
+      const _origW = _rotItem.w, _origH = _rotItem.h;
+      const _revBeforeRot = STATE.revision;
+      action_rotateSelected();
+      const _rotAfter = select_itemById(_addedId);
+      check(
+        "action_rotateSelected: swaps w and h",
+        _rotAfter.w === _origH && _rotAfter.h === _origW,
+        "w=" + _rotAfter.w + " h=" + _rotAfter.h
+      );
+      check(
+        "action_rotateSelected: commits exactly once",
+        STATE.revision === _revBeforeRot + 1,
+        "delta=" + (STATE.revision - _revBeforeRot)
+      );
+
+      // --- action_deleteSelected: removes item, clears selection, one commit ---
+      const _revBeforeDel = STATE.revision;
+      const _countBeforeDel = STATE.items.length;
+      action_deleteSelected();
+      check(
+        "action_deleteSelected: removes item from STATE.items",
+        STATE.items.length === _countBeforeDel - 1 && select_itemById(_addedId) === null,
+        "remaining=" + STATE.items.length
+      );
+      check(
+        "action_deleteSelected: clears STATE.selectedId",
+        STATE.selectedId === null,
+        "selectedId=" + STATE.selectedId
+      );
+      check(
+        "action_deleteSelected: commits exactly once",
+        STATE.revision === _revBeforeDel + 1,
+        "delta=" + (STATE.revision - _revBeforeDel)
+      );
+
       const passCount = results.filter((r) => r.pass).length;
       const totalCount = results.length;
 
@@ -2851,6 +2941,19 @@
       document.addEventListener("pointercancel", pointer_cancel);
 
       Bus.on("state:changed", render_schedule);
+
+      // Accessibility: after a delete, render_restoreFocus cannot find the
+      // deleted element's id (it no longer exists). Move focus to the canvas
+      // so keyboard users always have a stable, visible focus target.
+      Bus.on("state:changed", function (payload) {
+        if (payload && payload.reason === "delete-selected") {
+          requestAnimationFrame(function () {
+            if (DOM.canvas) {
+              DOM.canvas.focus({ preventScroll: true });
+            }
+          });
+        }
+      });
 
       render_all();
 
