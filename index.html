@@ -66,9 +66,22 @@
       --radius-ui: 8px;
       --radius-item: 6px;
 
-      --shadow-sm: 0 1px 2px rgba(27, 35, 48, 0.06), 0 1px 3px rgba(27, 35, 48, 0.10);
-      --shadow-md: 0 2px 6px rgba(27, 35, 48, 0.08), 0 4px 12px rgba(27, 35, 48, 0.10);
-      --shadow-lg: 0 8px 24px rgba(27, 35, 48, 0.16);
+      /* Layered, soft elevation -- multiple thin shadows stacked rather than
+         one heavy one, closer to how real ambient + key light separates. */
+      --shadow-xs: 0 1px 1px rgba(27, 35, 48, 0.05);
+      --shadow-sm: 0 1px 1px rgba(27, 35, 48, 0.04), 0 2px 4px rgba(27, 35, 48, 0.05), 0 1px 2px rgba(27, 35, 48, 0.06);
+      --shadow-md: 0 1px 2px rgba(27, 35, 48, 0.05), 0 4px 8px rgba(27, 35, 48, 0.06), 0 8px 16px rgba(27, 35, 48, 0.07);
+      --shadow-lg: 0 2px 4px rgba(27, 35, 48, 0.06), 0 8px 16px rgba(27, 35, 48, 0.09), 0 16px 32px rgba(27, 35, 48, 0.12);
+
+      /* Shared motion language: one standard ease for state changes, one
+         gentle overshoot-free "spring" feel for press/selection feedback. */
+      --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+      --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
+
+      /* Panel "glass" materials (header/sidebar/editor-panel/status-bar only --
+         never the canvas or canvas items, which must stay fully opaque). */
+      --glass-bg: rgba(255, 255, 255, 0.78);
+      --glass-blur: 20px;
 
       --canvas-w: 1800px;
       --canvas-h: 1200px;
@@ -77,6 +90,18 @@
       --z-item: 10;
       --z-selected: 20;
       --z-panel: 30;
+
+      /* Header-region tokens (design-header pass) */
+      --header-toolbar-gap: 6px;
+      --header-divider-color: var(--color-border);
+
+      /* Palette/sidebar tokens (design-palette pass) */
+      --palette-icon-size: 30px;
+      --palette-card-radius: 10px;
+
+      /* Canvas/editor tokens (design-canvas pass) */
+      --canvas-editor-icon-size: 22px;
+      --canvas-editor-group-bg: rgba(27, 35, 48, 0.025);
     }
 
     /* ============ SECTION: BASE ============ */
@@ -120,19 +145,21 @@
       padding: var(--space-sm) var(--space-md);
       font-weight: 600;
       cursor: pointer;
-      box-shadow: var(--shadow-sm);
-      transition: background 120ms ease, border-color 120ms ease,
-        box-shadow 120ms ease, transform 80ms ease;
+      box-shadow: var(--shadow-xs);
+      transition: background 160ms var(--ease-standard), border-color 160ms var(--ease-standard),
+        box-shadow 160ms var(--ease-standard), transform 160ms var(--ease-spring);
     }
 
     button:hover {
       border-color: var(--color-primary);
       background: var(--color-surface-2);
+      box-shadow: var(--shadow-sm);
     }
 
     button:active {
-      transform: translateY(1px);
+      transform: scale(0.97);
       box-shadow: none;
+      transition-duration: 80ms;
     }
 
     button:focus-visible,
@@ -142,6 +169,7 @@
     [tabindex]:focus-visible {
       outline: 3px solid var(--color-primary);
       outline-offset: 2px;
+      transition: outline-offset 120ms var(--ease-standard);
     }
 
     button.primary {
@@ -173,7 +201,7 @@
       background: var(--color-surface);
       color: var(--color-text);
       padding: var(--space-sm);
-      transition: border-color 120ms ease, box-shadow 120ms ease;
+      transition: border-color 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
     }
 
     input:focus,
@@ -206,6 +234,7 @@
       border-bottom: 1px solid var(--color-border);
       box-shadow: var(--shadow-sm);
       z-index: var(--z-panel);
+      gap: var(--space-md);
     }
 
     .sidebar,
@@ -238,6 +267,28 @@
       background: var(--color-surface);
       color: var(--color-muted);
       font-size: 12px;
+      transition: color 150ms var(--ease-standard);
+    }
+
+    /* Subtle glass material on fixed chrome only -- header, sidebar,
+       editor-panel, status-bar. Solid background is the default/fallback;
+       @supports upgrades to translucency + blur where available. The canvas
+       and canvas-items are intentionally excluded -- they must stay fully
+       opaque and readable regardless of browser support. */
+    @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+      .header,
+      .status-bar {
+        background: var(--glass-bg);
+        backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+      }
+
+      .sidebar,
+      .editor-panel {
+        background: rgba(247, 249, 252, 0.7);
+        backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+      }
     }
 
     .status-bar::before {
@@ -245,9 +296,36 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--color-primary);
-      box-shadow: 0 0 0 3px var(--color-primary-soft);
+      background: var(--status-dot-color, var(--color-primary));
+      box-shadow: 0 0 0 3px var(--status-dot-ring, var(--color-primary-soft));
       flex: none;
+      transition: background 150ms var(--ease-standard), box-shadow 150ms var(--ease-standard);
+    }
+
+    .status-bar[data-tone="warning"] {
+      color: var(--color-danger);
+    }
+
+    .status-bar[data-tone="warning"]::before {
+      background: var(--color-danger);
+      box-shadow: 0 0 0 3px var(--color-danger-soft);
+      animation: header-status-pulse 1.6s ease-in-out infinite;
+    }
+
+    .status-bar[data-tone="success"]::before {
+      background: #2f9e5b;
+      box-shadow: 0 0 0 3px rgba(47, 158, 91, 0.14);
+    }
+
+    @keyframes header-status-pulse {
+      0%, 100% { box-shadow: 0 0 0 3px var(--color-danger-soft); }
+      50% { box-shadow: 0 0 0 5px var(--color-danger-soft); }
+    }
+
+    .status-bar-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .section {
@@ -261,26 +339,56 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-bottom: var(--space-sm);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .section-title-icon {
+      display: inline-flex;
+      width: 16px;
+      height: 16px;
+      color: var(--color-primary);
+      flex: none;
+    }
+
+    .section-title-icon svg {
+      width: 100%;
+      height: 100%;
     }
 
     .brand {
       display: flex;
       align-items: center;
       gap: var(--space-sm);
+      min-width: 0;
     }
 
     .brand-logo-placeholder {
-      width: 34px;
-      height: 34px;
+      width: 36px;
+      height: 36px;
       border-radius: var(--radius-ui);
       background: linear-gradient(135deg, var(--color-primary), #5b8def);
       display: grid;
       place-items: center;
       color: #ffffff;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      box-shadow: var(--shadow-sm);
+      box-shadow: var(--shadow-sm), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+      flex: none;
+    }
+
+    .brand-logo-placeholder svg {
+      width: 20px;
+      height: 20px;
+      display: block;
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;
+      min-width: 0;
     }
 
     .brand-title {
@@ -288,12 +396,60 @@
       font-size: 16px;
       font-weight: 700;
       letter-spacing: -0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand-subtitle {
+      margin: 1px 0 0;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .toolbar {
       display: flex;
       align-items: center;
-      gap: var(--space-sm);
+      gap: var(--header-toolbar-gap);
+      flex: none;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: var(--header-toolbar-gap);
+    }
+
+    .toolbar-divider {
+      width: 1px;
+      height: 26px;
+      background: var(--header-divider-color);
+      margin: 0 var(--space-sm);
+      flex: none;
+    }
+
+    .toolbar button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .header-icon {
+      width: 16px;
+      height: 16px;
+      flex: none;
+      display: block;
+    }
+
+    .header-icon * {
+      vector-effect: non-scaling-stroke;
     }
 
     /* ============ SECTION: COMPONENTS ============ */
@@ -306,10 +462,18 @@
       position: relative;
       text-align: left;
       width: 100%;
-      padding-left: calc(var(--space-md) + 6px);
+      padding: var(--space-sm) var(--space-md);
+      padding-left: calc(var(--space-md) + 10px);
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      border-radius: var(--palette-card-radius);
+      background: var(--color-surface);
+      transition: transform 200ms var(--ease-spring), box-shadow 200ms var(--ease-standard),
+        border-color 160ms var(--ease-standard);
     }
 
     .palette-item::before {
@@ -332,22 +496,82 @@
     .palette-item:hover {
       transform: translateY(-1px);
       box-shadow: var(--shadow-md);
+      border-color: var(--type-color, var(--color-primary));
     }
 
     .palette-item:active {
-      transform: translateY(0);
+      transform: translateY(-1px) scale(0.98);
+      transition-duration: 80ms;
+    }
+
+    .palette-type-icon {
+      flex: none;
+      width: var(--palette-icon-size);
+      height: var(--palette-icon-size);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: color-mix(in srgb, var(--type-color, var(--color-border-strong)) 16%, var(--color-surface));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--type-color, var(--color-border-strong)) 35%, transparent);
+    }
+
+    .palette-type-icon svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+    }
+
+    .palette-item-body {
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .palette-item-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-sm);
     }
 
     .palette-item-name {
       display: block;
       font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .palette-item-meta {
-      display: block;
-      margin-top: var(--space-xs);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 0;
       color: var(--color-muted);
       font-size: 12px;
+    }
+
+    .palette-item-typelabel {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .palette-size-pill {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      color: var(--color-muted);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      font-variant-numeric: tabular-nums;
     }
 
     .canvas-wrap {
@@ -374,24 +598,50 @@
       -webkit-user-select: none;
     }
 
-    .canvas[data-state="empty"]::before {
-      content: attr(data-empty-text);
+    /* Empty state is now a real child element (.canvas-empty-state) rendered by
+       render_canvas, rather than a ::before/content(attr) pseudo-element. This
+       gives layout control for the illustration + text. data-state="empty"/"ready"
+       still toggles via container.dataset.state exactly as before. */
+    .canvas-empty-state {
       position: absolute;
       inset: var(--space-md);
-      display: grid;
-      place-items: center;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-md);
       border: 2px dashed var(--color-border-strong);
       border-radius: var(--radius-ui);
       color: var(--color-muted);
       font-size: 15px;
+      text-align: center;
+      padding: var(--space-lg);
       pointer-events: none;
+    }
+
+    .canvas[data-state="empty"] .canvas-empty-state {
+      display: flex;
+    }
+
+    .canvas-empty-illustration {
+      width: 132px;
+      height: 96px;
+      opacity: 0.85;
+    }
+
+    .canvas-empty-text {
+      max-width: 360px;
+      margin: 0;
+      line-height: 1.5;
     }
 
     .canvas-item {
       position: absolute;
       z-index: var(--z-item);
-      display: grid;
-      place-items: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       text-align: center;
       border: 1px solid var(--type-color, var(--color-border-strong));
       border-left: 4px solid var(--type-color, var(--color-border-strong));
@@ -404,7 +654,7 @@
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
-      transition: box-shadow 120ms ease;
+      transition: box-shadow 180ms var(--ease-standard), border-color 180ms var(--ease-standard);
     }
 
     .canvas-item:hover {
@@ -449,6 +699,50 @@
       will-change: transform;
     }
 
+    .canvas-item[data-colliding="true"] {
+      outline: 3px dashed var(--color-danger);
+      outline-offset: 2px;
+    }
+
+    .canvas-item[data-colliding="true"][data-selected="true"] {
+      outline: 3px solid var(--color-primary);
+      outline-offset: 2px;
+      box-shadow: var(--shadow-lg), inset 0 0 0 3px var(--color-danger);
+    }
+
+    /* Per-type icon badge inside each canvas item, reusing the same accent
+       color already established by --type-color on the left border. */
+    .canvas-item-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: var(--canvas-editor-icon-size);
+      height: var(--canvas-editor-icon-size);
+      margin-bottom: 2px;
+      border-radius: 999px;
+      background: var(--type-color, var(--color-border-strong));
+      color: #ffffff;
+      flex: none;
+    }
+
+    .canvas-item-icon svg {
+      width: 13px;
+      height: 13px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .canvas-item-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 0;
+      max-width: 100%;
+    }
+
     .item-name {
       font-size: var(--font-size-item-name);
       font-weight: 700;
@@ -488,6 +782,87 @@
       gap: var(--space-sm);
     }
 
+    /* Editor inspector groupings (canvas/editor agent territory) */
+    .editor-group {
+      margin-bottom: var(--space-lg);
+      padding: var(--space-md);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-ui);
+      background: var(--canvas-editor-group-bg);
+    }
+
+    .editor-group:last-of-type {
+      margin-bottom: var(--space-md);
+    }
+
+    .editor-group-title {
+      margin: 0 0 var(--space-sm);
+      color: var(--color-muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .editor-group .field:last-child,
+    .editor-group .field-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .editor-rotation-line {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin: 0 0 var(--space-md);
+      color: var(--color-muted);
+      font-size: 12px;
+    }
+
+    .editor-rotation-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      flex: none;
+      border-radius: 999px;
+      background: var(--color-primary-soft);
+      color: var(--color-primary);
+      transition: transform 240ms var(--ease-spring);
+    }
+
+    .editor-rotation-icon[data-rotated="true"] {
+      transform: rotate(90deg);
+    }
+
+    .editor-rotation-icon svg {
+      width: 13px;
+      height: 13px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .editor-icon-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .editor-icon-btn svg {
+      width: 15px;
+      height: 15px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex: none;
+    }
+
     .empty-state,
     .error-state {
       border: 1px dashed var(--color-border-strong);
@@ -508,6 +883,40 @@
       min-height: 130px;
       font-family: Consolas, Monaco, monospace;
       font-size: 12px;
+      background: var(--color-surface-2);
+      border-color: var(--color-border-strong);
+      line-height: 1.5;
+      box-shadow: inset 0 1px 2px rgba(27, 35, 48, 0.05);
+    }
+
+    .json-box:focus {
+      background: var(--color-surface);
+    }
+
+    /* Storage section grouping (design-palette agent) */
+    .storage-actions {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+      padding: var(--space-sm);
+      margin-bottom: var(--space-md);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-ui);
+      background: var(--color-surface);
+    }
+
+    .storage-actions-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-sm);
+    }
+
+    .storage-actions-row > button {
+      width: 100%;
+    }
+
+    .storage-actions .danger {
+      width: 100%;
     }
 
     .print-note {
@@ -536,6 +945,26 @@
 
       .status-bar {
         grid-column: 1 / 3;
+      }
+
+      .brand-subtitle {
+        display: none;
+      }
+
+      .toolbar {
+        gap: 4px;
+      }
+
+      .toolbar-divider {
+        margin: 0 var(--space-xs);
+      }
+
+      .toolbar button span.toolbar-btn-label {
+        display: none;
+      }
+
+      .toolbar button {
+        padding: var(--space-sm);
       }
     }
 
@@ -603,13 +1032,13 @@
 
     const FEATURE_FLAGS = {
       branding: false,
-      snapToGrid: false,
-      collisionDetection: false,
+      snapToGrid: true,
+      collisionDetection: true,
       print: true,
       importExport: true,
       localStorage: true,
       keyboardShortcuts: true,
-      selftest: false
+      selftest: true
     };
 
     /* ============ SECTION: BRAND ============ */
@@ -632,6 +1061,7 @@
 
     const COPY = {
       appName: "Station Layout Builder",
+      appTagline: "Kitchen Line Planner",
       sectionPalette: "Palette",
       sectionStorage: "Storage",
       sectionSelectedItem: "Selected Item",
@@ -643,9 +1073,11 @@
       storageFull: "Storage is full. Export your JSON before adding more data.",
       importError: "Could not import JSON.",
       exportReady: "Exported JSON.",
+      collisionsPresent: "Overlapping items detected",
       printNote: "For best print results use Chrome and set margins to None in the print dialog.",
       save: "Save",
       load: "Load",
+      snapToggle: "Snap to Grid",
       print: "Print",
       exportJson: "Export JSON",
       importJson: "Import JSON",
@@ -680,8 +1112,8 @@
       { id: "pan-1-3", name: "1/3 Pan", type: "pan", w: 120, h: 240 },
       { id: "pan-1-2", name: "1/2 Pan", type: "pan", w: 180, h: 240 },
       { id: "full-hotel", name: "Full Hotel", type: "rail", w: 360, h: 240 },
-      { id: "cold-rail", name: "Cold Rail", type: "rail", w: 600, h: 180 },
-      { id: "hot-well", name: "Hot Well", type: "hot", w: 480, h: 180 },
+      { id: "cold-rail", name: "Cold Rail", type: "rail", w: 600, h: 240 },
+      { id: "hot-well", name: "Hot Well", type: "hot", w: 480, h: 240 },
       { id: "prep-note", name: "Prep Note", type: "note", w: 220, h: 100 },
       { id: "custom-block", name: "Custom Block", type: "block", w: 200, h: 120 }
     ];
@@ -940,14 +1372,22 @@
       const source = select_paletteItem(sourceId);
       if (!source) return;
 
+      let placedX = x;
+      let placedY = y;
+
+      if (STATE.ui.snapToGrid) {
+        placedX = util_snap(placedX);
+        placedY = util_snap(placedY);
+      }
+
       const item = schema_normalizeItem({
         id: util_id("item"),
         sourceId: source.id,
         name: source.name,
         notes: "",
         type: source.type,
-        x,
-        y,
+        x: placedX,
+        y: placedY,
         w: source.w,
         h: source.h,
         rotation: 0,
@@ -1044,6 +1484,13 @@
       action_commit("clear-layout");
     }
 
+    function action_toggleSnapToGrid() {
+      STATE.ui.snapToGrid = !STATE.ui.snapToGrid;
+
+      action_setStatus(STATE.ui.snapToGrid ? "Snap to Grid on" : "Snap to Grid off");
+      action_commit("toggle-snap-to-grid");
+    }
+
     function action_importJson(raw) {
       if (!FEATURE_FLAGS.importExport) return;
 
@@ -1137,6 +1584,49 @@
       }
     }
 
+    function render_brandLogoMark() {
+      // Simple geometric "station grid" mark: a 2x2 grid of rounded cells
+      // echoing the canvas-item / palette grid concept, in the brand gradient.
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("aria-hidden", "true");
+      svg.innerHTML =
+        '<rect x="3" y="3" width="7.5" height="7.5" rx="1.6" fill="white" fill-opacity="0.95"/>' +
+        '<rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6" fill="white" fill-opacity="0.65"/>' +
+        '<rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6" fill="white" fill-opacity="0.65"/>' +
+        '<rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6" fill="white" fill-opacity="0.95"/>';
+      return svg;
+    }
+
+    function render_toolbarIcon(name) {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("aria-hidden", "true");
+      svg.classList.add("header-icon");
+
+      const paths = {
+        save:
+          '<path d="M3 2.5h7.5L13.5 5.5V13.5H3z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>' +
+          '<path d="M5.5 2.5V6h5V2.5" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>' +
+          '<path d="M5 9.5h6v4H5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>',
+        load:
+          '<path d="M2.5 5.2A1.7 1.7 0 0 1 4.2 3.5h2.4l1.2 1.4h4.5a1.7 1.7 0 0 1 1.7 1.7v4.7a1.7 1.7 0 0 1-1.7 1.7H4.2a1.7 1.7 0 0 1-1.7-1.7z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>' +
+          '<path d="M8 7.3v3.4M6.5 9.2 8 10.7l1.5-1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+        snap:
+          '<path d="M2.5 2.5h2.4v2.4H2.5zM11.1 2.5h2.4v2.4h-2.4zM2.5 11.1h2.4v2.4H2.5zM11.1 11.1h2.4v2.4h-2.4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>' +
+          '<path d="M5.7 3.7h4.6M3.7 5.7v4.6M12.3 5.7v4.6M5.7 12.3h4.6" stroke="currentColor" stroke-width="1.1" stroke-dasharray="1.6 1.4"/>',
+        print:
+          '<path d="M4.5 6V2.7h7V6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>' +
+          '<rect x="2.5" y="6" width="11" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/>' +
+          '<path d="M4.5 10.8h7v2.5h-7z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>'
+      };
+
+      svg.innerHTML = paths[name] || "";
+      return svg;
+    }
+
     function render_brandHeader(state, container) {
       container.textContent = "";
 
@@ -1145,29 +1635,158 @@
 
       const logo = document.createElement("div");
       logo.className = "brand-logo-placeholder";
-      logo.textContent = COPY.logo;
+      logo.appendChild(render_brandLogoMark());
+
+      const text = document.createElement("div");
+      text.className = "brand-text";
 
       const title = document.createElement("h1");
       title.className = "brand-title";
       title.textContent = FEATURE_FLAGS.branding && state.brand.enabled ? state.brand.name : COPY.appName;
 
-      brand.append(logo, title);
+      const subtitle = document.createElement("p");
+      subtitle.className = "brand-subtitle";
+      subtitle.textContent = COPY.appTagline;
+
+      text.append(title, subtitle);
+      brand.append(logo, text);
 
       const toolbar = document.createElement("div");
       toolbar.className = "toolbar";
 
-      const save = render_button("saveBtn", COPY.save, "primary");
-      const load = render_button("loadBtn", COPY.load);
-      const print = render_button("printBtn", COPY.print);
+      const fileGroup = document.createElement("div");
+      fileGroup.className = "toolbar-group";
 
-      toolbar.append(save, load, print);
+      const save = render_button("saveBtn", COPY.save, "primary");
+      render_toolbarButtonIcon(save, "save");
+
+      const load = render_button("loadBtn", COPY.load);
+      render_toolbarButtonIcon(load, "load");
+
+      fileGroup.append(save, load);
+
+      const divider = document.createElement("div");
+      divider.className = "toolbar-divider";
+      divider.setAttribute("aria-hidden", "true");
+
+      const viewGroup = document.createElement("div");
+      viewGroup.className = "toolbar-group";
+
+      const snapToggle = render_button("snapToggleBtn", COPY.snapToggle, state.ui.snapToGrid ? "primary" : null);
+      snapToggle.setAttribute("aria-pressed", String(state.ui.snapToGrid));
+      render_toolbarButtonIcon(snapToggle, "snap");
+
+      const print = render_button("printBtn", COPY.print);
+      render_toolbarButtonIcon(print, "print");
+
+      viewGroup.append(snapToggle, print);
+
+      toolbar.append(fileGroup, divider, viewGroup);
       container.append(brand, toolbar);
+    }
+
+    function render_toolbarButtonIcon(buttonEl, iconName) {
+      const icon = render_toolbarIcon(iconName);
+      const label = document.createElement("span");
+      label.className = "toolbar-btn-label";
+      label.textContent = buttonEl.textContent;
+
+      buttonEl.textContent = "";
+      buttonEl.append(icon, label);
+    }
+
+    function render_paletteTypeIcon(type) {
+      const wrap = document.createElement("span");
+      wrap.className = "palette-type-icon";
+      wrap.setAttribute("aria-hidden", "true");
+      wrap.innerHTML = render_paletteTypeIconMarkup(type);
+      return wrap;
+    }
+
+    function render_paletteTypeIconMarkup(type) {
+      // Simple geometric glyphs per item type, colored via currentColor against --type-* vars.
+      if (type === "pan") {
+        return (
+          '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+          '<rect x="4" y="5" width="16" height="14" rx="2" stroke="var(--type-pan)" stroke-width="2"/>' +
+          '<line x1="4" y1="12" x2="20" y2="12" stroke="var(--type-pan)" stroke-width="2"/>' +
+          "</svg>"
+        );
+      }
+
+      if (type === "rail") {
+        return (
+          '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+          '<rect x="3" y="9" width="18" height="6" rx="1.5" stroke="var(--type-rail)" stroke-width="2"/>' +
+          '<circle cx="7" cy="12" r="1.4" fill="var(--type-rail)"/>' +
+          '<circle cx="12" cy="12" r="1.4" fill="var(--type-rail)"/>' +
+          '<circle cx="17" cy="12" r="1.4" fill="var(--type-rail)"/>' +
+          "</svg>"
+        );
+      }
+
+      if (type === "hot") {
+        return (
+          '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+          '<rect x="3" y="6" width="18" height="12" rx="2" stroke="var(--type-hot)" stroke-width="2"/>' +
+          '<path d="M12 9c1.2 1.3 1.8 2.1 1.8 3.1a1.8 1.8 0 1 1-3.6 0c0-1 .6-1.8 1.8-3.1Z" fill="var(--type-hot)"/>' +
+          "</svg>"
+        );
+      }
+
+      if (type === "note") {
+        return (
+          '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+          '<path d="M5 4h11l3 3v13H5V4Z" stroke="var(--type-note)" stroke-width="2" stroke-linejoin="round"/>' +
+          '<path d="M16 4v3h3" stroke="var(--type-note)" stroke-width="2" stroke-linejoin="round"/>' +
+          '<line x1="8" y1="11" x2="15" y2="11" stroke="var(--type-note)" stroke-width="1.6"/>' +
+          '<line x1="8" y1="15" x2="13" y2="15" stroke="var(--type-note)" stroke-width="1.6"/>' +
+          "</svg>"
+        );
+      }
+
+      // block (default/fallback)
+      return (
+        '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect x="4" y="4" width="7" height="7" rx="1.2" fill="var(--type-block)"/>' +
+        '<rect x="13" y="4" width="7" height="7" rx="1.2" fill="var(--type-block)" opacity="0.55"/>' +
+        '<rect x="4" y="13" width="7" height="7" rx="1.2" fill="var(--type-block)" opacity="0.55"/>' +
+        '<rect x="13" y="13" width="7" height="7" rx="1.2" fill="var(--type-block)"/>' +
+        "</svg>"
+      );
+    }
+
+    function render_sidebarSectionIcon(kind) {
+      const wrap = document.createElement("span");
+      wrap.className = "section-title-icon";
+      wrap.setAttribute("aria-hidden", "true");
+
+      if (kind === "palette") {
+        wrap.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+          '<rect x="3" y="3" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/>' +
+          '<rect x="13" y="3" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/>' +
+          '<rect x="3" y="13" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/>' +
+          '<rect x="13" y="13" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/>' +
+          "</svg>";
+      } else {
+        wrap.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+          '<path d="M4 7a4 3 0 0 1 8 0v10a4 3 0 0 1-8 0V7Z" stroke="currentColor" stroke-width="2"/>' +
+          '<path d="M12 7a4 3 0 0 1 8 0v10a4 3 0 0 1-8 0" stroke="currentColor" stroke-width="2"/>' +
+          '<path d="M4 7a4 3 0 0 0 8 0" stroke="currentColor" stroke-width="2"/>' +
+          "</svg>";
+      }
+
+      return wrap;
     }
 
     function render_leftPanel(state, container) {
       container.textContent = "";
 
       const paletteSection = render_section(COPY.sectionPalette);
+      paletteSection.querySelector(".section-title").prepend(render_sidebarSectionIcon("palette"));
+
       const palette = document.createElement("div");
       palette.className = "palette";
       palette.id = "palette";
@@ -1178,10 +1797,20 @@
 
       if (FEATURE_FLAGS.importExport) {
         const storageSection = render_section(COPY.sectionStorage);
+        storageSection.querySelector(".section-title").prepend(render_sidebarSectionIcon("storage"));
 
         const exportBtn = render_button("exportBtn", COPY.exportJson);
         const importBtn = render_button("importBtn", COPY.importJson);
         const clearBtn = render_button("clearBtn", COPY.clearLayout, "danger");
+
+        const actionsGroup = document.createElement("div");
+        actionsGroup.className = "storage-actions";
+
+        const primaryRow = document.createElement("div");
+        primaryRow.className = "storage-actions-row";
+        primaryRow.append(exportBtn, importBtn);
+
+        actionsGroup.append(primaryRow, clearBtn);
 
         const field = document.createElement("div");
         field.className = "field";
@@ -1196,7 +1825,7 @@
         textarea.value = state.ui.jsonDraft;
 
         field.append(label, textarea);
-        storageSection.append(exportBtn, importBtn, clearBtn, field);
+        storageSection.append(actionsGroup, field);
         container.appendChild(storageSection);
 
         DOM.jsonBox = textarea;
@@ -1251,23 +1880,102 @@
         button.dataset.paletteId = item.id;
         button.dataset.type = item.type;
 
+        const icon = render_paletteTypeIcon(item.type);
+
+        const body = document.createElement("span");
+        body.className = "palette-item-body";
+
+        const top = document.createElement("span");
+        top.className = "palette-item-top";
+
         const name = document.createElement("span");
         name.className = "palette-item-name";
         name.textContent = item.name;
 
+        const sizePill = document.createElement("span");
+        sizePill.className = "palette-size-pill";
+        sizePill.textContent = `${item.w}×${item.h}`;
+
+        top.append(name, sizePill);
+
         const meta = document.createElement("span");
         meta.className = "palette-item-meta";
-        meta.textContent = `${select_itemType(item.type).label} · ${item.w}×${item.h}`;
 
-        button.append(name, meta);
+        const typeLabel = document.createElement("span");
+        typeLabel.className = "palette-item-typelabel";
+        typeLabel.textContent = select_itemType(item.type).label;
+
+        meta.appendChild(typeLabel);
+
+        body.append(top, meta);
+        button.append(icon, body);
         container.appendChild(button);
       });
+    }
+
+    /* Small inline-SVG icon glyphs per item type, reused both on canvas item
+       badges and (implicitly via the same visual language) anywhere else in
+       this owned region. Kept tiny and abstract — strokes only, currentColor. */
+    function render_canvasTypeIcon(type) {
+      const icons = {
+        pan: '<rect x="3" y="3" width="13" height="13" rx="1.5"></rect><line x1="3" y1="9.5" x2="16" y2="9.5"></line>',
+        rail: '<line x1="2.5" y1="9.5" x2="16.5" y2="9.5"></line><circle cx="5.5" cy="9.5" r="1.6"></circle><circle cx="13.5" cy="9.5" r="1.6"></circle>',
+        hot: '<path d="M9.5 2.5c0 2 -2.5 2.5 -2.5 5a2.5 2.5 0 0 0 5 0c0 -1.4 -1 -1.8 -1 -3.2"></path><rect x="3" y="11" width="13" height="5.5" rx="1.2"></rect>',
+        note: '<path d="M4 3h11v13l-3 -2.4l-3 2.4l-3 -2.4l-2 1.6z"></path>',
+        block: '<rect x="3" y="3" width="13" height="13" rx="1.5"></rect>'
+      };
+
+      const path = icons[type] || icons.block;
+
+      const wrap = document.createElement("span");
+      wrap.className = "canvas-item-icon";
+      wrap.setAttribute("aria-hidden", "true");
+      wrap.innerHTML = `<svg viewBox="0 0 19 19">${path}</svg>`;
+      return wrap;
+    }
+
+    function render_canvasEmptyIllustration() {
+      // Simple abstract illustration: a handful of placed rectangles
+      // suggesting a layout, echoing the type-accent palette.
+      const wrap = document.createElement("div");
+      wrap.className = "canvas-empty-illustration";
+      wrap.setAttribute("aria-hidden", "true");
+      wrap.innerHTML = `
+        <svg viewBox="0 0 132 96" width="132" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="124" height="88" rx="6" fill="none" stroke="var(--color-border-strong)" stroke-width="1.5" stroke-dasharray="4 4"></rect>
+          <rect x="16" y="16" width="34" height="26" rx="3" fill="var(--type-rail)" opacity="0.28" stroke="var(--type-rail)" stroke-width="1.5"></rect>
+          <rect x="58" y="16" width="22" height="46" rx="3" fill="var(--type-pan)" opacity="0.28" stroke="var(--type-pan)" stroke-width="1.5"></rect>
+          <rect x="88" y="16" width="28" height="20" rx="3" fill="var(--type-hot)" opacity="0.28" stroke="var(--type-hot)" stroke-width="1.5"></rect>
+          <rect x="88" y="42" width="28" height="20" rx="3" fill="var(--type-note)" opacity="0.28" stroke="var(--type-note)" stroke-width="1.5"></rect>
+          <rect x="16" y="50" width="34" height="30" rx="3" fill="var(--type-block)" opacity="0.28" stroke="var(--type-block)" stroke-width="1.5"></rect>
+          <rect x="58" y="70" width="58" height="12" rx="3" fill="var(--color-primary)" opacity="0.18" stroke="var(--color-primary)" stroke-width="1.5"></rect>
+        </svg>
+      `;
+      return wrap;
     }
 
     function render_canvas(state, container) {
       container.textContent = "";
       container.dataset.state = state.items.length === 0 ? "empty" : "ready";
       container.dataset.emptyText = COPY.emptyCanvas;
+
+      const collidingIds = FEATURE_FLAGS.collisionDetection
+        ? util_findCollidingIds(state.items)
+        : null;
+
+      // Real empty-state child element (replaces the old ::before/content(attr)
+      // pseudo-element trick) — gives room for the illustration. Visibility is
+      // still driven purely by container.dataset.state via CSS.
+      const emptyState = document.createElement("div");
+      emptyState.className = "canvas-empty-state";
+      emptyState.appendChild(render_canvasEmptyIllustration());
+
+      const emptyText = document.createElement("p");
+      emptyText.className = "canvas-empty-text";
+      emptyText.textContent = COPY.emptyCanvas;
+      emptyState.appendChild(emptyText);
+
+      container.appendChild(emptyState);
 
       state.items.forEach((item) => {
         const el = document.createElement("div");
@@ -1276,12 +1984,24 @@
         el.dataset.type = item.type;
         el.dataset.selected = String(item.id === state.selectedId);
         el.dataset.dragging = String(state.ui.dragging === item.id);
+
+        if (collidingIds && collidingIds.has(item.id)) {
+          el.dataset.colliding = "true";
+        } else {
+          delete el.dataset.colliding;
+        }
+
         el.tabIndex = item.id === state.selectedId ? 0 : -1;
 
         el.style.width = item.w + "px";
         el.style.height = item.h + "px";
         el.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)`;
         el.style.zIndex = String(item.z);
+
+        const icon = render_canvasTypeIcon(item.type);
+
+        const body = document.createElement("div");
+        body.className = "canvas-item-body";
 
         const name = document.createElement("div");
         name.className = "item-name";
@@ -1291,9 +2011,25 @@
         notes.className = "item-notes";
         notes.textContent = item.notes;
 
-        el.append(name, notes);
+        body.append(name, notes);
+        el.append(icon, body);
         container.appendChild(el);
       });
+    }
+
+    function render_editorActionButton(id, text, iconPath, variant) {
+      const button = render_button(id, "", variant);
+      button.classList.add("editor-icon-btn");
+
+      const icon = document.createElement("span");
+      icon.setAttribute("aria-hidden", "true");
+      icon.innerHTML = `<svg viewBox="0 0 19 19">${iconPath}</svg>`;
+
+      const label = document.createElement("span");
+      label.textContent = text;
+
+      button.append(icon, label);
+      return button;
     }
 
     function render_selectedEditor(state, container) {
@@ -1309,9 +2045,26 @@
         return;
       }
 
-      const meta = document.createElement("p");
-      meta.className = "metadata-line";
-      meta.textContent = `Rotation: ${item.rotation}°`;
+      const detailsGroup = document.createElement("div");
+      detailsGroup.className = "editor-group";
+
+      const detailsTitle = document.createElement("h3");
+      detailsTitle.className = "editor-group-title";
+      detailsTitle.textContent = "Details";
+
+      const rotationLine = document.createElement("p");
+      rotationLine.className = "editor-rotation-line";
+
+      const rotationIcon = document.createElement("span");
+      rotationIcon.className = "editor-rotation-icon";
+      rotationIcon.dataset.rotated = String(item.rotation === 90);
+      rotationIcon.setAttribute("aria-hidden", "true");
+      rotationIcon.innerHTML = '<svg viewBox="0 0 19 19"><path d="M4 9.5a5.5 5.5 0 1 1 1.6 3.9"></path><path d="M4 13.5v-3.2h3.2"></path></svg>';
+
+      const rotationText = document.createElement("span");
+      rotationText.textContent = `Rotation: ${item.rotation}°`;
+
+      rotationLine.append(rotationIcon, rotationText);
 
       const nameField = render_field(COPY.name, "editName", "input", item.name);
       const notesField = render_field(COPY.notesTooling, "editNotes", "textarea", item.notes);
@@ -1336,6 +2089,15 @@
 
       typeField.append(typeLabel, typeSelect);
 
+      detailsGroup.append(detailsTitle, rotationLine, nameField, notesField, typeField);
+
+      const positionGroup = document.createElement("div");
+      positionGroup.className = "editor-group";
+
+      const positionTitle = document.createElement("h3");
+      positionTitle.className = "editor-group-title";
+      positionTitle.textContent = "Position & Size";
+
       const sizeRow = document.createElement("div");
       sizeRow.className = "field-row";
       sizeRow.append(
@@ -1350,20 +2112,61 @@
         render_field(COPY.y, "editY", "input", Math.round(item.y), "number")
       );
 
+      positionGroup.append(positionTitle, sizeRow, positionRow);
+
       const actions = document.createElement("div");
       actions.className = "actions-three";
 
       actions.append(
-        render_button("rotateBtn", COPY.rotate),
-        render_button("duplicateBtn", COPY.duplicate),
-        render_button("deleteBtn", COPY.delete, "danger")
+        render_editorActionButton(
+          "rotateBtn",
+          COPY.rotate,
+          '<path d="M4 9.5a5.5 5.5 0 1 1 1.6 3.9"></path><path d="M4 13.5v-3.2h3.2"></path>'
+        ),
+        render_editorActionButton(
+          "duplicateBtn",
+          COPY.duplicate,
+          '<rect x="3" y="3" width="10" height="10" rx="1.5"></rect><path d="M7 16h7a2 2 0 0 0 2 -2v-7"></path>'
+        ),
+        render_editorActionButton(
+          "deleteBtn",
+          COPY.delete,
+          '<path d="M4 5.5h11"></path><path d="M7.5 5.5v-1.5a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v1.5"></path><path d="M5.5 5.5l0.6 9.2a1.5 1.5 0 0 0 1.5 1.4h3.8a1.5 1.5 0 0 0 1.5 -1.4l0.6 -9.2"></path>',
+          "danger"
+        )
       );
 
-      container.append(meta, nameField, notesField, typeField, sizeRow, positionRow, actions);
+      container.append(detailsGroup, positionGroup, actions);
+    }
+
+    function render_statusBarTone(message) {
+      if (typeof message !== "string") return null;
+
+      if (message.indexOf("Overlapping") !== -1) return "warning";
+      if (message.indexOf("Cleared") !== -1) return "success";
+      if (message.indexOf(COPY.storageSaved) !== -1) return "success";
+
+      return null;
     }
 
     function render_status(state, container) {
-      container.textContent = state.status;
+      let message = state.status;
+
+      if (FEATURE_FLAGS.collisionDetection) {
+        const collidingIds = util_findCollidingIds(state.items);
+        if (collidingIds.size > 0) {
+          message = message + " — " + COPY.collisionsPresent;
+        }
+      }
+
+      container.textContent = message;
+
+      const tone = render_statusBarTone(message);
+      if (tone) {
+        container.dataset.tone = tone;
+      } else {
+        delete container.dataset.tone;
+      }
     }
 
     function render_documentMeta(state) {
@@ -1437,6 +2240,18 @@
     function pointer_down(event) {
       if (event.isPrimary === false) return;
       if (event.button !== undefined && event.button !== 0) return;
+
+      // Only one drag/placement session is supported at a time (POINTER is a
+      // singleton, not keyed by pointerId). Without this guard, a second
+      // pointerdown -- a stray multi-touch contact, a fast double-click that
+      // registers as two pointer ids, etc. -- silently overwrites the
+      // in-progress session: the first drag's moves stop applying with no
+      // error, and it never receives its own cleanup. Ignoring the second
+      // pointerdown outright is safer than corrupting state. Confirmed via
+      // stress testing on 2026-06-21; see CLAUDE.md.
+      if (POINTER.mode && event.pointerId !== POINTER.pointerId) {
+        return;
+      }
 
       const paletteEl = event.target.closest("[data-palette-id]");
       const itemEl = event.target.closest("[data-item-id]");
@@ -1564,6 +2379,8 @@
       if (event.target.id === "printBtn" && FEATURE_FLAGS.print) {
         window.print();
       }
+
+      if (event.target.id === "snapToggleBtn") action_toggleSnapToGrid();
 
       if (event.target.id === "rotateBtn") action_rotateSelected();
       if (event.target.id === "duplicateBtn") action_duplicateSelected();
@@ -1703,6 +2520,11 @@
       if (key === KEYS.ARROW_LEFT) item.x -= amount;
       if (key === KEYS.ARROW_RIGHT) item.x += amount;
 
+      if (STATE.ui.snapToGrid) {
+        item.x = util_snap(item.x);
+        item.y = util_snap(item.y);
+      }
+
       util_clampItem(item);
 
       action_commit("nudge");
@@ -1734,6 +2556,284 @@
       item.y = util_clamp(util_number(item.y, 0), 0, SCALE.canvas.h - item.h);
     }
 
+    function util_rectsOverlap(a, b) {
+      return a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y;
+    }
+
+    function util_findCollidingIds(items) {
+      const collidingIds = new Set();
+
+      for (let i = 0; i < items.length; i += 1) {
+        for (let j = i + 1; j < items.length; j += 1) {
+          if (util_rectsOverlap(items[i], items[j])) {
+            collidingIds.add(items[i].id);
+            collidingIds.add(items[j].id);
+          }
+        }
+      }
+
+      return collidingIds;
+    }
+
+    /* ============ SECTION: SELFTEST ============ */
+    function selftest_run() {
+      const results = [];
+
+      function check(name, condition, detail) {
+        results.push({
+          name,
+          pass: Boolean(condition),
+          detail: detail === undefined ? "" : detail
+        });
+      }
+
+      // --- schema_normalizeItem: defaults / fallbacks for missing fields ---
+      const normalizedEmpty = schema_normalizeItem({});
+      check(
+        "schema_normalizeItem: missing fields fall back to PALETTE_ITEMS[0] + defaults",
+        normalizedEmpty.sourceId === PALETTE_ITEMS[0].id &&
+          normalizedEmpty.name === PALETTE_ITEMS[0].name &&
+          normalizedEmpty.type === PALETTE_ITEMS[0].type &&
+          normalizedEmpty.notes === "" &&
+          normalizedEmpty.x === 40 &&
+          normalizedEmpty.y === 40 &&
+          normalizedEmpty.w === PALETTE_ITEMS[0].w &&
+          normalizedEmpty.h === PALETTE_ITEMS[0].h &&
+          normalizedEmpty.rotation === 0 &&
+          normalizedEmpty.z === 1 &&
+          typeof normalizedEmpty.id === "string" &&
+          normalizedEmpty.id.length > 0,
+        JSON.stringify(normalizedEmpty)
+      );
+
+      // --- schema_normalizeItem: invalid/non-numeric types coerce to fallback ---
+      const normalizedInvalid = schema_normalizeItem({
+        id: "fixed-id",
+        sourceId: "custom-block",
+        name: "Test Block",
+        type: "block",
+        x: "not-a-number",
+        y: undefined,
+        w: "NaN-ish",
+        h: NaN,
+        rotation: "oops",
+        z: {}
+      });
+      check(
+        "schema_normalizeItem: invalid numeric fields fall back to PALETTE_ITEMS[0] defaults",
+        normalizedInvalid.x === 40 &&
+          normalizedInvalid.y === 40 &&
+          normalizedInvalid.w === PALETTE_ITEMS[0].w &&
+          normalizedInvalid.h === PALETTE_ITEMS[0].h &&
+          normalizedInvalid.rotation === 0 &&
+          normalizedInvalid.z === 1 &&
+          normalizedInvalid.id === "fixed-id",
+        JSON.stringify(normalizedInvalid)
+      );
+
+      // --- schema_normalizeItem: valid numeric values pass through untouched ---
+      const normalizedValid = schema_normalizeItem({
+        id: "item_abc123",
+        sourceId: "pan-1-2",
+        name: "Half Pan",
+        notes: "extra deep",
+        type: "pan",
+        x: 100,
+        y: 250,
+        w: 180,
+        h: 240,
+        rotation: 90,
+        z: 4
+      });
+      check(
+        "schema_normalizeItem: valid full item passes through unchanged",
+        normalizedValid.id === "item_abc123" &&
+          normalizedValid.x === 100 &&
+          normalizedValid.y === 250 &&
+          normalizedValid.w === 180 &&
+          normalizedValid.h === 240 &&
+          normalizedValid.rotation === 90 &&
+          normalizedValid.z === 4,
+        JSON.stringify(normalizedValid)
+      );
+
+      // --- schema_normalizeItem: w/h below minimum get clamped up to 20 ---
+      const normalizedTiny = schema_normalizeItem({ w: 2, h: -5 });
+      check(
+        "schema_normalizeItem: w/h below 20 are raised to minimum 20",
+        normalizedTiny.w === 20 && normalizedTiny.h === 20,
+        JSON.stringify({ w: normalizedTiny.w, h: normalizedTiny.h })
+      );
+
+      // --- schema_normalizeLayout: null/non-object input returns empty layout shape ---
+      const normalizedLayoutNull = schema_normalizeLayout(null);
+      check(
+        "schema_normalizeLayout: null input returns empty layout with items []",
+        Array.isArray(normalizedLayoutNull.items) &&
+          normalizedLayoutNull.items.length === 0 &&
+          normalizedLayoutNull.schemaVersion === SCHEMA_VERSION,
+        JSON.stringify(normalizedLayoutNull)
+      );
+
+      // --- schema_normalizeLayout: non-array items field becomes empty array ---
+      const normalizedLayoutBadItems = schema_normalizeLayout({ items: "not-an-array" });
+      check(
+        "schema_normalizeLayout: non-array items field normalizes to []",
+        Array.isArray(normalizedLayoutBadItems.items) && normalizedLayoutBadItems.items.length === 0,
+        JSON.stringify(normalizedLayoutBadItems.items)
+      );
+
+      // --- schema_normalizeLayout: valid items array gets normalized per-item ---
+      const normalizedLayoutGood = schema_normalizeLayout({
+        items: [{ id: "x1", x: 5, y: 5, w: 50, h: 50, type: "note" }]
+      });
+      check(
+        "schema_normalizeLayout: array of items normalizes each entry",
+        normalizedLayoutGood.items.length === 1 &&
+          normalizedLayoutGood.items[0].id === "x1" &&
+          normalizedLayoutGood.items[0].type === "note",
+        JSON.stringify(normalizedLayoutGood.items)
+      );
+
+      // --- util_clampItem: x/y far out of range get clamped within canvas bounds ---
+      const clampedOver = { x: 999999, y: 999999, w: 100, h: 100 };
+      util_clampItem(clampedOver);
+      check(
+        "util_clampItem: far out-of-range x/y clamp to canvas-w/h minus item size",
+        clampedOver.x === SCALE.canvas.w - 100 && clampedOver.y === SCALE.canvas.h - 100,
+        JSON.stringify(clampedOver)
+      );
+
+      // --- util_clampItem: negative x/y clamp to 0 ---
+      const clampedNegative = { x: -500, y: -500, w: 50, h: 50 };
+      util_clampItem(clampedNegative);
+      check(
+        "util_clampItem: negative x/y clamp to 0",
+        clampedNegative.x === 0 && clampedNegative.y === 0,
+        JSON.stringify(clampedNegative)
+      );
+
+      // --- util_clampItem: w/h below minimum raised to 20, and x/y reclamped accordingly ---
+      const clampedTinySize = { x: 10, y: 10, w: -10, h: 0 };
+      util_clampItem(clampedTinySize);
+      check(
+        "util_clampItem: w/h below 20 raised to 20",
+        clampedTinySize.w === 20 && clampedTinySize.h === 20,
+        JSON.stringify(clampedTinySize)
+      );
+
+      // --- util_clampItem: item exactly at canvas edge stays in bounds ---
+      const clampedEdge = { x: SCALE.canvas.w - 20, y: SCALE.canvas.h - 20, w: 20, h: 20 };
+      util_clampItem(clampedEdge);
+      check(
+        "util_clampItem: item exactly at canvas edge remains unchanged",
+        clampedEdge.x === SCALE.canvas.w - 20 && clampedEdge.y === SCALE.canvas.h - 20,
+        JSON.stringify(clampedEdge)
+      );
+
+      // --- util_snap: exact multiples of GRID_SIZE are unchanged ---
+      check(
+        "util_snap: exact multiple of GRID_SIZE (48) stays 48",
+        util_snap(48) === 48,
+        "util_snap(48) = " + util_snap(48)
+      );
+
+      // --- util_snap: halfway point rounds to nearest multiple (Math.round behavior) ---
+      check(
+        "util_snap: halfway point (12) rounds up to 24",
+        util_snap(12) === 24,
+        "util_snap(12) = " + util_snap(12)
+      );
+
+      // --- util_snap: negative numbers snap correctly ---
+      check(
+        "util_snap: negative number (-30) snaps to -24",
+        util_snap(-30) === -24,
+        "util_snap(-30) = " + util_snap(-30)
+      );
+
+      // --- util_number: NaN input falls back ---
+      check(
+        "util_number: NaN input returns fallback",
+        util_number(NaN, 7) === 7,
+        "util_number(NaN, 7) = " + util_number(NaN, 7)
+      );
+
+      // --- util_number: undefined input falls back ---
+      check(
+        "util_number: undefined input returns fallback",
+        util_number(undefined, 9) === 9,
+        "util_number(undefined, 9) = " + util_number(undefined, 9)
+      );
+
+      // --- util_number: numeric string coerces to number ---
+      check(
+        "util_number: numeric string '42' coerces to 42",
+        util_number("42", 0) === 42,
+        "util_number('42', 0) = " + util_number("42", 0)
+      );
+
+      // --- util_number: non-numeric string falls back ---
+      check(
+        "util_number: non-numeric string 'abc' returns fallback",
+        util_number("abc", 3) === 3,
+        "util_number('abc', 3) = " + util_number("abc", 3)
+      );
+
+      // --- util_id: correct prefix and non-empty suffix ---
+      const id1 = util_id("item");
+      const idParts = id1.split("_");
+      check(
+        "util_id: produces 'item_' prefix with non-empty suffix",
+        id1.startsWith("item_") && idParts.length === 2 && idParts[1].length > 0,
+        id1
+      );
+
+      // --- util_id: two calls produce different ids ---
+      const id2 = util_id("item");
+      check(
+        "util_id: two successive calls produce different ids",
+        id1 !== id2,
+        id1 + " vs " + id2
+      );
+
+      // --- util_clamp: pure clamp helper sanity check (used internally by util_clampItem) ---
+      check(
+        "util_clamp: value within range/below min/above max all clamp correctly",
+        util_clamp(5, 0, 10) === 5 && util_clamp(-5, 0, 10) === 0 && util_clamp(15, 0, 10) === 10,
+        JSON.stringify({
+          mid: util_clamp(5, 0, 10),
+          low: util_clamp(-5, 0, 10),
+          high: util_clamp(15, 0, 10)
+        })
+      );
+
+      const passCount = results.filter((r) => r.pass).length;
+      const totalCount = results.length;
+
+      if (typeof console.table === "function") {
+        console.table(
+          results.map((r) => ({
+            check: r.name,
+            result: r.pass ? "PASS" : "FAIL",
+            detail: r.detail
+          }))
+        );
+      }
+
+      results.forEach((r) => {
+        const mark = r.pass ? "✓" : "✗";
+        console.info(mark + " " + r.name + (r.detail ? " — " + r.detail : ""));
+      });
+
+      console.info("Selftest: " + passCount + "/" + totalCount + " passed");
+
+      return results;
+    }
+
     /* ============ SECTION: INIT ============ */
     function init() {
       action_hydrate(storage_load());
@@ -1750,13 +2850,13 @@
       document.addEventListener("pointerup", pointer_up);
       document.addEventListener("pointercancel", pointer_cancel);
 
-      if (FEATURE_FLAGS.selftest) {
-        console.info("Selftest scaffold is enabled, but no selftest runner is implemented in Version Zero.");
-      }
-
       Bus.on("state:changed", render_schedule);
 
       render_all();
+
+      if (FEATURE_FLAGS.selftest) {
+        selftest_run();
+      }
     }
 
     init();
