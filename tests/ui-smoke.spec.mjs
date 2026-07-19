@@ -158,6 +158,52 @@ test("pointer placement, selection, duplicate, export, persistence, and keyboard
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
+test("rotate swaps dimensions, commits once, and survives reload", async ({ page }, testInfo) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openClean(page);
+  await placeFirstPaletteItem(page, { x: 260, y: 240 });
+  await page.locator(".canvas-item").first().click();
+
+  const before = await page.evaluate(() => {
+    const item = STATE.items[0];
+    return { id: item.id, w: item.w, h: item.h, rotation: item.rotation, revision: STATE.revision };
+  });
+
+  await page.getByRole("button", { name: "Rotate" }).click();
+  await settleRenders(page);
+
+  const rotated = await page.evaluate((id) => {
+    const item = STATE.items.find((candidate) => candidate.id === id);
+    return {
+      w: item.w,
+      h: item.h,
+      rotation: item.rotation,
+      revision: STATE.revision,
+      status: STATE.status,
+    };
+  }, before.id);
+
+  expect(rotated.w).toBe(before.h);
+  expect(rotated.h).toBe(before.w);
+  expect(rotated.rotation).toBe(before.rotation === 90 ? 0 : 90);
+  expect(rotated.revision).toBe(before.revision + 1);
+  expect(rotated.status).toContain("Rotated");
+
+  await page.reload({ waitUntil: "load" });
+  const restored = await page.evaluate((id) => {
+    const item = STATE.items.find((candidate) => candidate.id === id);
+    return { w: item.w, h: item.h, rotation: item.rotation };
+  }, before.id);
+  expect(restored).toEqual({ w: rotated.w, h: rotated.h, rotation: rotated.rotation });
+
+  await page.screenshot({
+    path: testInfo.outputPath("desktop-rotated-persisted-item.png"),
+    fullPage: false,
+  });
+
+  expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
+});
+
 test("pointer movement snaps, clamps, commits, and survives reload", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await openClean(page);
