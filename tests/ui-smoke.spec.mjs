@@ -78,16 +78,9 @@ async function placeFirstPaletteItem(page, canvasOffset = { x: 240, y: 220 }) {
   expect(paletteBox).not.toBeNull();
   expect(canvasBox).not.toBeNull();
 
-  await page.mouse.move(
-    paletteBox.x + paletteBox.width / 2,
-    paletteBox.y + paletteBox.height / 2,
-  );
+  await page.mouse.move(paletteBox.x + paletteBox.width / 2, paletteBox.y + paletteBox.height / 2);
   await page.mouse.down();
-  await page.mouse.move(
-    canvasBox.x + canvasOffset.x,
-    canvasBox.y + canvasOffset.y,
-    { steps: 12 },
-  );
+  await page.mouse.move(canvasBox.x + canvasOffset.x, canvasBox.y + canvasOffset.y, { steps: 12 });
   await page.mouse.up();
 
   await expect(page.locator(".canvas-item")).toHaveCount(1);
@@ -114,11 +107,7 @@ test("clean startup, accessibility surface, and built-in self-tests", async ({ p
   await page.keyboard.press("Tab");
   await expect(loadButton).toBeFocused();
 
-  await page.screenshot({
-    path: testInfo.outputPath("desktop-clean-start.png"),
-    fullPage: false,
-  });
-
+  await page.screenshot({ path: testInfo.outputPath("desktop-clean-start.png"), fullPage: false });
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
@@ -150,11 +139,7 @@ test("pointer placement, selection, duplicate, export, persistence, and keyboard
   await expect(page.locator(".canvas-item")).toHaveCount(1);
   await expect(page.locator("#canvas")).toBeFocused();
 
-  await page.screenshot({
-    path: testInfo.outputPath("desktop-persisted-layout.png"),
-    fullPage: false,
-  });
-
+  await page.screenshot({ path: testInfo.outputPath("desktop-persisted-layout.png"), fullPage: false });
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
@@ -169,18 +154,14 @@ test("rotate swaps dimensions, commits once, and survives reload", async ({ page
     return { id: item.id, w: item.w, h: item.h, rotation: item.rotation, revision: STATE.revision };
   });
 
-  await page.getByRole("button", { name: "Rotate" }).click();
+  const rotateButton = page.getByRole("button", { name: "Rotate" });
+  await rotateButton.focus();
+  await page.keyboard.press("Enter");
   await settleRenders(page);
 
   const rotated = await page.evaluate((id) => {
     const item = STATE.items.find((candidate) => candidate.id === id);
-    return {
-      w: item.w,
-      h: item.h,
-      rotation: item.rotation,
-      revision: STATE.revision,
-      status: STATE.status,
-    };
+    return { w: item.w, h: item.h, rotation: item.rotation, revision: STATE.revision, status: STATE.status };
   }, before.id);
 
   expect(rotated.w).toBe(before.h);
@@ -196,11 +177,7 @@ test("rotate swaps dimensions, commits once, and survives reload", async ({ page
   }, before.id);
   expect(restored).toEqual({ w: rotated.w, h: rotated.h, rotation: rotated.rotation });
 
-  await page.screenshot({
-    path: testInfo.outputPath("desktop-rotated-persisted-item.png"),
-    fullPage: false,
-  });
-
+  await page.screenshot({ path: testInfo.outputPath("desktop-rotated-persisted-item.png"), fullPage: false });
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
@@ -219,23 +196,13 @@ test("pointer movement snaps, clamps, commits, and survives reload", async ({ pa
 
   await page.mouse.move(itemBox.x + itemBox.width / 2, itemBox.y + itemBox.height / 2);
   await page.mouse.down();
-  await page.mouse.move(
-    itemBox.x + itemBox.width / 2 + 53,
-    itemBox.y + itemBox.height / 2 + 37,
-    { steps: 10 },
-  );
+  await page.mouse.move(itemBox.x + itemBox.width / 2 + 53, itemBox.y + itemBox.height / 2 + 37, { steps: 10 });
   await page.mouse.up();
   await settleRenders(page);
 
   const moved = await page.evaluate((id) => {
     const current = STATE.items.find((candidate) => candidate.id === id);
-    return {
-      x: current.x,
-      y: current.y,
-      revision: STATE.revision,
-      status: STATE.status,
-      gridSize: GRID_SIZE,
-    };
+    return { x: current.x, y: current.y, revision: STATE.revision, status: STATE.status, gridSize: GRID_SIZE };
   }, before.id);
 
   expect(moved.x).not.toBe(before.x);
@@ -247,18 +214,13 @@ test("pointer movement snaps, clamps, commits, and survives reload", async ({ pa
 
   await page.reload({ waitUntil: "load" });
   await expect(page.locator(".canvas-item")).toHaveCount(1);
-
   const restored = await page.evaluate((id) => {
     const current = STATE.items.find((candidate) => candidate.id === id);
     return { x: current.x, y: current.y };
   }, before.id);
   expect(restored).toEqual({ x: moved.x, y: moved.y });
 
-  await page.screenshot({
-    path: testInfo.outputPath("desktop-moved-persisted-item.png"),
-    fullPage: false,
-  });
-
+  await page.screenshot({ path: testInfo.outputPath("desktop-moved-persisted-item.png"), fullPage: false });
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
@@ -267,25 +229,14 @@ test("invalid JSON import is contained without replacing the working layout", as
   await openClean(page);
   await placeFirstPaletteItem(page, { x: 320, y: 300 });
 
-  const before = await page.evaluate(() => ({
-    items: JSON.parse(JSON.stringify(STATE.items)),
-    selectedId: STATE.selectedId,
-    revision: STATE.revision,
-  }));
-
+  const before = await page.evaluate(() => ({ items: JSON.parse(JSON.stringify(STATE.items)), selectedId: STATE.selectedId, revision: STATE.revision }));
   const jsonBox = page.locator("#jsonBox");
   await jsonBox.fill('{"schemaVersion":1,"items":[');
   await settleRenders(page);
   await page.getByRole("button", { name: "Import JSON" }).click();
   await settleRenders(page);
 
-  const after = await page.evaluate(() => ({
-    items: JSON.parse(JSON.stringify(STATE.items)),
-    selectedId: STATE.selectedId,
-    revision: STATE.revision,
-    status: STATE.status,
-  }));
-
+  const after = await page.evaluate(() => ({ items: JSON.parse(JSON.stringify(STATE.items)), selectedId: STATE.selectedId, revision: STATE.revision, status: STATE.status }));
   expect(after.items).toEqual(before.items);
   expect(after.selectedId).toBe(before.selectedId);
   expect(after.revision).toBeGreaterThanOrEqual(before.revision);
@@ -297,11 +248,7 @@ test("invalid JSON import is contained without replacing the working layout", as
   const restored = await page.evaluate(() => JSON.parse(JSON.stringify(STATE.items)));
   expect(restored).toEqual(before.items);
 
-  await page.screenshot({
-    path: testInfo.outputPath("desktop-invalid-import-contained.png"),
-    fullPage: false,
-  });
-
+  await page.screenshot({ path: testInfo.outputPath("desktop-invalid-import-contained.png"), fullPage: false });
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
@@ -310,22 +257,13 @@ test("corrupted persisted JSON falls back to a clean usable layout", async ({ pa
   await openClean(page);
 
   const storageKey = await page.evaluate(() => STORAGE_KEY);
-  await page.evaluate(({ key }) => {
-    localStorage.setItem(key, '{"schemaVersion":1,"items":[');
-  }, { key: storageKey });
-
+  await page.evaluate(({ key }) => { localStorage.setItem(key, '{"schemaVersion":1,"items":['); }, { key: storageKey });
   await page.reload({ waitUntil: "load" });
   await expect(page.locator(".palette-item")).toHaveCount(9);
   await expect(page.locator("#canvas")).toBeVisible();
   await expect(page.locator(".canvas-item")).toHaveCount(0);
 
-  const recovered = await page.evaluate(() => ({
-    itemCount: STATE.items.length,
-    selectedId: STATE.selectedId,
-    schemaVersion: STATE.schemaVersion,
-    expectedSchemaVersion: SCHEMA_VERSION,
-    revision: STATE.revision,
-  }));
+  const recovered = await page.evaluate(() => ({ itemCount: STATE.items.length, selectedId: STATE.selectedId, schemaVersion: STATE.schemaVersion, expectedSchemaVersion: SCHEMA_VERSION, revision: STATE.revision }));
   expect(recovered.itemCount).toBe(0);
   expect(recovered.selectedId).toBeNull();
   expect(recovered.schemaVersion).toBe(recovered.expectedSchemaVersion);
@@ -335,11 +273,7 @@ test("corrupted persisted JSON falls back to a clean usable layout", async ({ pa
   await page.reload({ waitUntil: "load" });
   await expect(page.locator(".canvas-item")).toHaveCount(1);
 
-  await page.screenshot({
-    path: testInfo.outputPath("desktop-corrupt-storage-recovered.png"),
-    fullPage: false,
-  });
-
+  await page.screenshot({ path: testInfo.outputPath("desktop-corrupt-storage-recovered.png"), fullPage: false });
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
@@ -349,29 +283,19 @@ test("clear layout requires confirmation and persists only after acceptance", as
   await placeFirstPaletteItem(page, { x: 400, y: 380 });
 
   const clearButton = page.getByRole("button", { name: "Clear Layout" });
-  page.once("dialog", async (dialog) => {
-    expect(dialog.type()).toBe("confirm");
-    await dialog.dismiss();
-  });
+  page.once("dialog", async (dialog) => { expect(dialog.type()).toBe("confirm"); await dialog.dismiss(); });
   await clearButton.click();
   await expect(page.locator(".canvas-item")).toHaveCount(1);
 
   await page.reload({ waitUntil: "load" });
   await expect(page.locator(".canvas-item")).toHaveCount(1);
 
-  page.once("dialog", async (dialog) => {
-    expect(dialog.type()).toBe("confirm");
-    await dialog.accept();
-  });
+  page.once("dialog", async (dialog) => { expect(dialog.type()).toBe("confirm"); await dialog.accept(); });
   await clearButton.click();
   await settleRenders(page);
   await expect(page.locator(".canvas-item")).toHaveCount(0);
 
-  const cleared = await page.evaluate(() => ({
-    itemCount: STATE.items.length,
-    selectedId: STATE.selectedId,
-    status: STATE.status,
-  }));
+  const cleared = await page.evaluate(() => ({ itemCount: STATE.items.length, selectedId: STATE.selectedId, status: STATE.status }));
   expect(cleared.itemCount).toBe(0);
   expect(cleared.selectedId).toBeNull();
   expect(cleared.status).toBe("Cleared layout");
@@ -379,11 +303,7 @@ test("clear layout requires confirmation and persists only after acceptance", as
   await page.reload({ waitUntil: "load" });
   await expect(page.locator(".canvas-item")).toHaveCount(0);
 
-  await page.screenshot({
-    path: testInfo.outputPath("desktop-clear-confirmed.png"),
-    fullPage: false,
-  });
-
+  await page.screenshot({ path: testInfo.outputPath("desktop-clear-confirmed.png"), fullPage: false });
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
@@ -398,10 +318,6 @@ test("constrained-width layout preserves the palette and canvas", async ({ page 
   await expect(page.locator("#rightPanel")).toBeHidden();
   await expect(page.locator(".toolbar-btn-label").first()).toBeHidden();
 
-  await page.screenshot({
-    path: testInfo.outputPath("constrained-900x800.png"),
-    fullPage: false,
-  });
-
+  await page.screenshot({ path: testInfo.outputPath("constrained-900x800.png"), fullPage: false });
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
