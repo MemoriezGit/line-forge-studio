@@ -143,6 +143,54 @@ test("pointer placement, selection, duplicate, export, persistence, and keyboard
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
+test("duplicate creates a distinct selected copy, commits once, and survives reload", async ({ page }, testInfo) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openClean(page);
+  await placeFirstPaletteItem(page, { x: 300, y: 280 });
+  await page.locator(".canvas-item").first().click();
+
+  const before = await page.evaluate(() => {
+    const item = STATE.items[0];
+    return { item: JSON.parse(JSON.stringify(item)), revision: STATE.revision };
+  });
+
+  const duplicateButton = page.getByRole("button", { name: "Duplicate" });
+  await duplicateButton.focus();
+  await page.keyboard.press("Enter");
+  await settleRenders(page);
+
+  const duplicated = await page.evaluate(() => ({
+    items: JSON.parse(JSON.stringify(STATE.items)),
+    selectedId: STATE.selectedId,
+    revision: STATE.revision,
+    status: STATE.status,
+  }));
+
+  expect(duplicated.items).toHaveLength(2);
+  const copy = duplicated.items[1];
+  expect(copy.id).not.toBe(before.item.id);
+  expect(copy.sourceId).toBe(before.item.sourceId);
+  expect(copy.name).toBe(before.item.name);
+  expect(copy.w).toBe(before.item.w);
+  expect(copy.h).toBe(before.item.h);
+  expect(copy.x).toBeGreaterThanOrEqual(before.item.x);
+  expect(copy.y).toBeGreaterThanOrEqual(before.item.y);
+  expect(duplicated.selectedId).toBe(copy.id);
+  expect(duplicated.revision).toBe(before.revision + 1);
+  expect(duplicated.status).toContain("Duplicated");
+
+  await page.reload({ waitUntil: "load" });
+  const restored = await page.evaluate((copyId) => {
+    const item = STATE.items.find((candidate) => candidate.id === copyId);
+    return { item: item ? JSON.parse(JSON.stringify(item)) : null, itemCount: STATE.items.length };
+  }, copy.id);
+  expect(restored.itemCount).toBe(2);
+  expect(restored.item).toEqual(copy);
+
+  await page.screenshot({ path: testInfo.outputPath("desktop-duplicated-persisted-item.png"), fullPage: false });
+  expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
+});
+
 test("rotate swaps dimensions, commits once, and survives reload", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await openClean(page);
