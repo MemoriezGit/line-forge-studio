@@ -121,7 +121,9 @@ test("pointer placement, selection, duplicate, export, persistence, and keyboard
   await expect(page.locator(".canvas-item")).toHaveCount(2);
 
   await page.getByRole("button", { name: "Export JSON" }).click();
-  const exported = await page.locator("#jsonBox").inputValue();
+  const jsonBox = page.locator("#jsonBox");
+  await expect(jsonBox).not.toHaveValue("");
+  const exported = await jsonBox.inputValue();
   const parsed = JSON.parse(exported);
   expect(parsed.items).toHaveLength(2);
 
