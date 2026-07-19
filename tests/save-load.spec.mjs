@@ -99,7 +99,7 @@ test("explicit Save and Load restore the exact persisted layout", async ({ page 
     render_schedule();
   });
   await settleRenders(page);
-  await expect(page.locator(".canvas-item-name").first()).toHaveText("Unsaved transient edit");
+  await expect(page.getByRole("application", { name: "Station layout canvas" })).toContainText("Unsaved transient edit");
 
   const loadButton = page.getByRole("button", { name: "Load" });
   await loadButton.focus();
