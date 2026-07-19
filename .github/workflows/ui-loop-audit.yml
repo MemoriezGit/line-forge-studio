@@ -63,13 +63,13 @@ jobs:
           node-version: "22"
 
       - name: Install Playwright test runner
-        run: npm install --no-save @playwright/test
+        run: npm install --no-save @playwright/test@1.60.0
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright@1.60.0 install --with-deps chromium
 
       - name: Run browser smoke tests
-        run: npx playwright test
+        run: npx playwright@1.60.0 test
 
       - name: Upload browser evidence
         if: always()
