@@ -72,8 +72,9 @@ async function placeFirstPaletteItem(page) {
 
 test("explicit Save and Load restore the exact persisted layout", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
-  await page.addInitScript(() => localStorage.clear());
   await page.goto(APP_URL, { waitUntil: "load" });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: "load" });
   await expect(page.locator("#canvas")).toBeVisible();
   await placeFirstPaletteItem(page);
 
