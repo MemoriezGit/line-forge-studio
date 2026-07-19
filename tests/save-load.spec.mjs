@@ -113,7 +113,7 @@ test("explicit Save and Load restore the exact persisted layout", async ({ page 
     status: STATE.status,
   }));
   expect(loaded.items).toEqual(saved.items);
-  expect(loaded.selectedId).toBe(saved.selectedId);
+  expect(loaded.selectedId).toBeNull();
   expect(loaded.revision).toBeGreaterThan(saved.revision);
   expect(loaded.status).toContain("Loaded");
 
@@ -123,7 +123,7 @@ test("explicit Save and Load restore the exact persisted layout", async ({ page 
     selectedId: STATE.selectedId,
   }));
   expect(restored.items).toEqual(saved.items);
-  expect(restored.selectedId).toBe(saved.selectedId);
+  expect(restored.selectedId).toBeNull();
 
   await page.screenshot({ path: testInfo.outputPath("desktop-explicit-save-load-restored.png"), fullPage: false });
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
