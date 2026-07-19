@@ -2,6 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Required operating contract
+
+Read `AGENTS.md` and `docs/30-PHASE-UI-IMPROVEMENT-LOOP.md` before editing. They are the canonical improvement and release contract for both Claude Code and Codex.
+
+For every UI improvement session:
+
+1. Work from the last passing release on one session branch.
+2. Run `node scripts/ui-loop-audit.mjs --strict` before editing.
+3. Run the browser self-tests and capture the result.
+4. Improve the highest-value measurable weakness without creating a parallel rewrite.
+5. Re-run structural and browser checks after each behavior slice.
+6. Record evidence in `docs/runs/YYYY-MM-DD-ui-loop.md`.
+7. Do not mark an advanced 3D phase complete until it has reproducible runtime evidence.
+
+The current app is a working 2D baseline. The advanced 3D direction must be introduced through a renderer-neutral state/schema migration and feature-parity gates, not by deleting the current implementation.
+
 ## What this is
 
 A single-file vanilla JS/HTML/CSS app: `index.html` — a kitchen/restaurant station layout planner (drag equipment from a palette onto a canvas, edit/rotate/duplicate placed items, export/import the layout as JSON). No build step, no `package.json`, no external dependencies, no CDN scripts. The entire app — markup, styles, and script — lives in this one file.
@@ -9,12 +25,14 @@ A single-file vanilla JS/HTML/CSS app: `index.html` — a kitchen/restaurant sta
 ## Commands
 
 - **Run**: open `index.html` directly in a browser. There is no dev server or build step.
+- **Structural audit**: `node scripts/ui-loop-audit.mjs --strict`.
+- **Audit JSON**: `node scripts/ui-loop-audit.mjs --json`.
 - **Test**: the file has a built-in self-test harness, `selftest_run()` (~line 2530), which runs automatically on load when `FEATURE_FLAGS.selftest` is `true` (it is, by default). Results print to the browser devtools console via `console.table`/`console.info` as PASS/FAIL per check — open the console to see them.
-- There is no separate test runner, linter, or build command in this repo. To verify changes without a browser, load the `<script>` body into a Node + `jsdom` environment and assert against `STATE` / `selftest_run()` output.
+- There is no separate package test runner, linter, or build command in this repo. To verify changes without a browser, load the `<script>` body into a Node + `jsdom` environment and assert against `STATE` / `selftest_run()` output.
 
 ## Critical gotcha when working in this repo
 
-Sandboxed shell access to this drive (and to this repo's git state) has repeatedly returned stale or truncated file content mid-session — even immediately after a fresh copy of the file. Do not trust `wc -l`, `tail`, `cat`, `git status`, or `git log` run through a shell for this repo. Always verify file contents by reading the file directly with an editor/file-read tool, and run git mutations (`commit`, `merge`, `push`) from a real terminal on the user's machine rather than through a sandboxed shell.
+Sandboxed shell access to this drive (and to this repo's git state) has repeatedly returned stale or truncated file content mid-session — even immediately after a fresh copy of the file. Do not trust `wc -l`, `tail`, `cat`, `git status`, or `git log` run through a sandboxed shell for this repo. Always verify file contents by reading the file directly with an editor/file-read tool, and run git mutations (`commit`, `merge`, `push`) from a real terminal on the user's machine rather than through a sandboxed shell.
 
 ## Architecture
 
@@ -53,5 +71,5 @@ Gates optional/deferred behavior: `branding`, `snapToGrid`, `collisionDetection`
 ## Git workflow
 
 - Remote: `https://github.com/MemoriezGit/line-forge-studio.git`; commit author identity is `MemoriezGit`.
-- Branching policy: one new branch per working session, commit there, merge into `main` locally, then the user pushes `main` themselves from their own terminal. Do not push to the remote from a sandboxed shell.
+- Branching policy: one new branch per working session, multiple focused commits on that branch, then review through a pull request before merging to `main`.
 - `Ai Apolo/Buddy/` is an unrelated stray directory with its own nested empty git repo — it is not part of this app and can be ignored.
