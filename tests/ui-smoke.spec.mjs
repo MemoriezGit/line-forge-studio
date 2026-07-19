@@ -170,7 +170,7 @@ test("duplicate creates a distinct selected copy, commits once, and survives rel
   const copy = duplicated.items[1];
   expect(copy.id).not.toBe(before.item.id);
   expect(copy.sourceId).toBe(before.item.sourceId);
-  expect(copy.name).toBe(before.item.name);
+  expect(copy.name).toBe(`${before.item.name} Copy`);
   expect(copy.w).toBe(before.item.w);
   expect(copy.h).toBe(before.item.h);
   expect(copy.x).toBeGreaterThanOrEqual(before.item.x);
