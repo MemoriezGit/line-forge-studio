@@ -259,6 +259,43 @@ test("invalid JSON import is contained without replacing the working layout", as
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
+test("corrupted persisted JSON falls back to a clean usable layout", async ({ page }, testInfo) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openClean(page);
+
+  const storageKey = await page.evaluate(() => STORAGE_KEY);
+  await page.evaluate(({ key }) => {
+    localStorage.setItem(key, '{"schemaVersion":1,"items":[');
+  }, { key: storageKey });
+
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator(".palette-item")).toHaveCount(9);
+  await expect(page.locator("#canvas")).toBeVisible();
+  await expect(page.locator(".canvas-item")).toHaveCount(0);
+
+  const recovered = await page.evaluate(() => ({
+    itemCount: STATE.items.length,
+    selectedId: STATE.selectedId,
+    schemaVersion: STATE.schemaVersion,
+    revision: STATE.revision,
+  }));
+  expect(recovered.itemCount).toBe(0);
+  expect(recovered.selectedId).toBeNull();
+  expect(recovered.schemaVersion).toBe(SCHEMA_VERSION);
+  expect(recovered.revision).toBeGreaterThan(0);
+
+  await placeFirstPaletteItem(page, { x: 360, y: 340 });
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator(".canvas-item")).toHaveCount(1);
+
+  await page.screenshot({
+    path: testInfo.outputPath("desktop-corrupt-storage-recovered.png"),
+    fullPage: false,
+  });
+
+  expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
+});
+
 test("constrained-width layout preserves the palette and canvas", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 900, height: 800 });
