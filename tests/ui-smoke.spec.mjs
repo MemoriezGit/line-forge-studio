@@ -216,6 +216,49 @@ test("pointer movement snaps, clamps, commits, and survives reload", async ({ pa
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
+test("invalid JSON import is contained without replacing the working layout", async ({ page }, testInfo) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openClean(page);
+  await placeFirstPaletteItem(page, { x: 320, y: 300 });
+
+  const before = await page.evaluate(() => ({
+    items: JSON.parse(JSON.stringify(STATE.items)),
+    selectedId: STATE.selectedId,
+    revision: STATE.revision,
+  }));
+
+  const jsonBox = page.locator("#jsonBox");
+  await jsonBox.fill('{"schemaVersion":1,"items":[');
+  await settleRenders(page);
+  await page.getByRole("button", { name: "Import JSON" }).click();
+  await settleRenders(page);
+
+  const after = await page.evaluate(() => ({
+    items: JSON.parse(JSON.stringify(STATE.items)),
+    selectedId: STATE.selectedId,
+    revision: STATE.revision,
+    status: STATE.status,
+  }));
+
+  expect(after.items).toEqual(before.items);
+  expect(after.selectedId).toBe(before.selectedId);
+  expect(after.revision).toBeGreaterThanOrEqual(before.revision);
+  expect(after.status).toBe("Could not import JSON.");
+  await expect(page.locator(".canvas-item")).toHaveCount(1);
+
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator(".canvas-item")).toHaveCount(1);
+  const restored = await page.evaluate(() => JSON.parse(JSON.stringify(STATE.items)));
+  expect(restored).toEqual(before.items);
+
+  await page.screenshot({
+    path: testInfo.outputPath("desktop-invalid-import-contained.png"),
+    fullPage: false,
+  });
+
+  expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
+});
+
 test("constrained-width layout preserves the palette and canvas", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 900, height: 800 });
