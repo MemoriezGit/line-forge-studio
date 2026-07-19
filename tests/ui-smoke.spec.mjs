@@ -277,11 +277,12 @@ test("corrupted persisted JSON falls back to a clean usable layout", async ({ pa
     itemCount: STATE.items.length,
     selectedId: STATE.selectedId,
     schemaVersion: STATE.schemaVersion,
+    expectedSchemaVersion: SCHEMA_VERSION,
     revision: STATE.revision,
   }));
   expect(recovered.itemCount).toBe(0);
   expect(recovered.selectedId).toBeNull();
-  expect(recovered.schemaVersion).toBe(SCHEMA_VERSION);
+  expect(recovered.schemaVersion).toBe(recovered.expectedSchemaVersion);
   expect(recovered.revision).toBeGreaterThan(0);
 
   await placeFirstPaletteItem(page, { x: 360, y: 340 });
