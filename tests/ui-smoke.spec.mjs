@@ -57,6 +57,12 @@ function collectRuntimeErrors(page) {
   return errors;
 }
 
+async function settleRenders(page) {
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+}
+
 async function openClean(page) {
   await page.goto(APP_URL, { waitUntil: "load" });
   await expect(page.locator(".palette-item")).toHaveCount(9);
@@ -69,15 +75,16 @@ test("clean startup, accessibility surface, and built-in self-tests", async ({ p
 
   await expect(page).toHaveTitle("Station Layout Builder");
   await expect(page.getByRole("application", { name: "Station layout canvas" })).toBeVisible();
-  const saveButton = page.getByRole("button", { name: "Save" });
-  const loadButton = page.getByRole("button", { name: "Load" });
-  await expect(saveButton).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Snap to Grid" })).toHaveAttribute("aria-pressed", "true");
 
   const results = await page.evaluate(() => selftest_run());
   const failures = results.filter((result) => !result.pass);
   expect(failures, JSON.stringify(failures, null, 2)).toEqual([]);
+  await settleRenders(page);
 
+  const saveButton = page.getByRole("button", { name: "Save" });
+  const loadButton = page.getByRole("button", { name: "Load" });
   await saveButton.focus();
   await expect(saveButton).toBeFocused();
   await page.keyboard.press("Tab");
@@ -130,7 +137,7 @@ test("pointer placement, selection, duplicate, export, persistence, and keyboard
   await page.reload({ waitUntil: "load" });
   await expect(page.locator(".canvas-item")).toHaveCount(2);
 
-  await page.locator(".canvas-item").first().click();
+  await page.locator(".canvas-item").last().click();
   await page.keyboard.press("Delete");
   await expect(page.locator(".canvas-item")).toHaveCount(1);
   await expect(page.locator("#canvas")).toBeFocused();
