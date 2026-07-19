@@ -1,0 +1,44 @@
+name: 30-Phase UI Audit
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+      - "claude/**"
+      - "feature/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  structural-audit:
+    name: Protected baseline audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run strict structural audit
+        run: node scripts/ui-loop-audit.mjs --strict
+
+      - name: Write machine-readable audit
+        if: always()
+        run: node scripts/ui-loop-audit.mjs --json > ui-loop-audit.json
+
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-loop-audit-${{ github.sha }}
+          path: ui-loop-audit.json
+          retention-days: 30
