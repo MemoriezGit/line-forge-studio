@@ -69,6 +69,30 @@ async function openClean(page) {
   await expect(page.locator("#canvas")).toBeVisible();
 }
 
+async function placeFirstPaletteItem(page, canvasOffset = { x: 240, y: 220 }) {
+  const palette = page.locator(".palette-item").first();
+  const canvas = page.locator("#canvas");
+  const paletteBox = await palette.boundingBox();
+  const canvasBox = await canvas.boundingBox();
+
+  expect(paletteBox).not.toBeNull();
+  expect(canvasBox).not.toBeNull();
+
+  await page.mouse.move(
+    paletteBox.x + paletteBox.width / 2,
+    paletteBox.y + paletteBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    canvasBox.x + canvasOffset.x,
+    canvasBox.y + canvasOffset.y,
+    { steps: 12 },
+  );
+  await page.mouse.up();
+
+  await expect(page.locator(".canvas-item")).toHaveCount(1);
+}
+
 test("clean startup, accessibility surface, and built-in self-tests", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await openClean(page);
@@ -101,24 +125,8 @@ test("clean startup, accessibility surface, and built-in self-tests", async ({ p
 test("pointer placement, selection, duplicate, export, persistence, and keyboard delete", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await openClean(page);
+  await placeFirstPaletteItem(page);
 
-  const palette = page.locator(".palette-item").first();
-  const canvas = page.locator("#canvas");
-  const paletteBox = await palette.boundingBox();
-  const canvasBox = await canvas.boundingBox();
-
-  expect(paletteBox).not.toBeNull();
-  expect(canvasBox).not.toBeNull();
-
-  await page.mouse.move(
-    paletteBox.x + paletteBox.width / 2,
-    paletteBox.y + paletteBox.height / 2,
-  );
-  await page.mouse.down();
-  await page.mouse.move(canvasBox.x + 240, canvasBox.y + 220, { steps: 12 });
-  await page.mouse.up();
-
-  await expect(page.locator(".canvas-item")).toHaveCount(1);
   await page.locator(".canvas-item").first().click();
   await expect(page.locator("#selectedEditor #editName")).toBeVisible();
 
@@ -144,6 +152,64 @@ test("pointer placement, selection, duplicate, export, persistence, and keyboard
 
   await page.screenshot({
     path: testInfo.outputPath("desktop-persisted-layout.png"),
+    fullPage: false,
+  });
+
+  expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
+});
+
+test("pointer movement snaps, clamps, commits, and survives reload", async ({ page }, testInfo) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openClean(page);
+  await placeFirstPaletteItem(page, { x: 280, y: 260 });
+
+  const item = page.locator(".canvas-item").first();
+  const before = await page.evaluate(() => {
+    const current = STATE.items[0];
+    return { id: current.id, x: current.x, y: current.y, revision: STATE.revision };
+  });
+  const itemBox = await item.boundingBox();
+  expect(itemBox).not.toBeNull();
+
+  await page.mouse.move(itemBox.x + itemBox.width / 2, itemBox.y + itemBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    itemBox.x + itemBox.width / 2 + 53,
+    itemBox.y + itemBox.height / 2 + 37,
+    { steps: 10 },
+  );
+  await page.mouse.up();
+  await settleRenders(page);
+
+  const moved = await page.evaluate((id) => {
+    const current = STATE.items.find((candidate) => candidate.id === id);
+    return {
+      x: current.x,
+      y: current.y,
+      revision: STATE.revision,
+      status: STATE.status,
+      gridSize: GRID_SIZE,
+    };
+  }, before.id);
+
+  expect(moved.x).not.toBe(before.x);
+  expect(moved.y).not.toBe(before.y);
+  expect(moved.x % moved.gridSize).toBe(0);
+  expect(moved.y % moved.gridSize).toBe(0);
+  expect(moved.revision).toBeGreaterThan(before.revision);
+  expect(moved.status).toBe("Moved item");
+
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator(".canvas-item")).toHaveCount(1);
+
+  const restored = await page.evaluate((id) => {
+    const current = STATE.items.find((candidate) => candidate.id === id);
+    return { x: current.x, y: current.y };
+  }, before.id);
+  expect(restored).toEqual({ x: moved.x, y: moved.y });
+
+  await page.screenshot({
+    path: testInfo.outputPath("desktop-moved-persisted-item.png"),
     fullPage: false,
   });
 
