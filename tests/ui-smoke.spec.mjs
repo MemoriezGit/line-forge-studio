@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const HOST = "127.0.0.1";
 const PORT = 4173;
-const URL = `http://${HOST}:${PORT}`;
+const APP_URL = `http://${HOST}:${PORT}`;
 
 let server;
 let indexHtml;
@@ -13,7 +13,7 @@ test.beforeAll(async () => {
   indexHtml = await readFile("index.html", "utf8");
 
   server = createServer((request, response) => {
-    const path = new URL(request.url ?? "/", URL).pathname;
+    const path = new URL(request.url ?? "/", APP_URL).pathname;
 
     if (path === "/" || path === "/index.html") {
       response.writeHead(200, {
@@ -62,7 +62,7 @@ async function openClean(page) {
     window.localStorage.clear();
   });
 
-  await page.goto(URL, { waitUntil: "load" });
+  await page.goto(APP_URL, { waitUntil: "load" });
   await expect(page.locator(".palette-item")).toHaveCount(9);
   await expect(page.locator("#canvas")).toBeVisible();
 }
