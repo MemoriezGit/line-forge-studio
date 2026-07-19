@@ -297,6 +297,50 @@ test("corrupted persisted JSON falls back to a clean usable layout", async ({ pa
   expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
 });
 
+test("clear layout requires confirmation and persists only after acceptance", async ({ page }, testInfo) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openClean(page);
+  await placeFirstPaletteItem(page, { x: 400, y: 380 });
+
+  const clearButton = page.getByRole("button", { name: "Clear Layout" });
+  page.once("dialog", async (dialog) => {
+    expect(dialog.type()).toBe("confirm");
+    await dialog.dismiss();
+  });
+  await clearButton.click();
+  await expect(page.locator(".canvas-item")).toHaveCount(1);
+
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator(".canvas-item")).toHaveCount(1);
+
+  page.once("dialog", async (dialog) => {
+    expect(dialog.type()).toBe("confirm");
+    await dialog.accept();
+  });
+  await clearButton.click();
+  await settleRenders(page);
+  await expect(page.locator(".canvas-item")).toHaveCount(0);
+
+  const cleared = await page.evaluate(() => ({
+    itemCount: STATE.items.length,
+    selectedId: STATE.selectedId,
+    status: STATE.status,
+  }));
+  expect(cleared.itemCount).toBe(0);
+  expect(cleared.selectedId).toBeNull();
+  expect(cleared.status).toBe("Cleared layout");
+
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator(".canvas-item")).toHaveCount(0);
+
+  await page.screenshot({
+    path: testInfo.outputPath("desktop-clear-confirmed.png"),
+    fullPage: false,
+  });
+
+  expect(runtimeErrors, runtimeErrors.join("\n")).toEqual([]);
+});
+
 test("constrained-width layout preserves the palette and canvas", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 900, height: 800 });
