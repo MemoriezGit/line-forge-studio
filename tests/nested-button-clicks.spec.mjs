@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const HOST = "127.0.0.1";
 const PORT = 4174;
 const APP_URL = `http://${HOST}:${PORT}`;
+const DEFECT_REASON = "Issue #2: handle_click dispatches from event.target.id instead of the closest owning button.";
 
 let server;
 let indexHtml;
@@ -68,7 +69,7 @@ async function placeFirstPaletteItem(page) {
 }
 
 test("nested SVG click activates the owning Rotate button", async ({ page }) => {
-  test.fail(true, "Issue #2: handle_click dispatches from event.target.id instead of the closest owning button.");
+  test.fail(true, DEFECT_REASON);
 
   await placeFirstPaletteItem(page);
 
@@ -90,4 +91,49 @@ test("nested SVG click activates the owning Rotate button", async ({ page }) => 
   expect(after.rotation).toBe(before.rotation === 90 ? 0 : 90);
   expect(after.revision).toBe(before.revision + 1);
   expect(after.status).toContain("Rotated");
+});
+
+test("nested label click activates the owning Duplicate button", async ({ page }) => {
+  test.fail(true, DEFECT_REASON);
+
+  await placeFirstPaletteItem(page);
+  const before = await page.evaluate(() => ({ count: STATE.items.length, revision: STATE.revision }));
+
+  await page.locator("#duplicateBtn span").last().click();
+  await settleRenders(page);
+
+  const after = await page.evaluate(() => ({
+    count: STATE.items.length,
+    revision: STATE.revision,
+    selectedId: STATE.selectedId,
+    lastId: STATE.items.at(-1)?.id,
+    status: STATE.status,
+  }));
+
+  expect(after.count).toBe(before.count + 1);
+  expect(after.revision).toBe(before.revision + 1);
+  expect(after.selectedId).toBe(after.lastId);
+  expect(after.status).toContain("Duplicated");
+});
+
+test("nested label click activates the owning Delete button", async ({ page }) => {
+  test.fail(true, DEFECT_REASON);
+
+  await placeFirstPaletteItem(page);
+  const beforeRevision = await page.evaluate(() => STATE.revision);
+
+  await page.locator("#deleteBtn span").last().click();
+  await settleRenders(page);
+
+  const after = await page.evaluate(() => ({
+    count: STATE.items.length,
+    revision: STATE.revision,
+    selectedId: STATE.selectedId,
+    status: STATE.status,
+  }));
+
+  expect(after.count).toBe(0);
+  expect(after.revision).toBe(beforeRevision + 1);
+  expect(after.selectedId).toBeNull();
+  expect(after.status).toContain("Deleted");
 });
