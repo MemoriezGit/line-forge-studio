@@ -42,6 +42,15 @@ test.afterAll(async () => {
   });
 });
 
+function captureRuntimeErrors(page) {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(`console: ${message.text()}`);
+  });
+  return errors;
+}
+
 async function settleRenders(page) {
   await page.evaluate(() => new Promise((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(resolve));
@@ -70,6 +79,7 @@ async function placeFirstPaletteItem(page) {
 
 test("nested SVG click activates the owning Rotate button", async ({ page }) => {
   test.fail(true, DEFECT_REASON);
+  const runtimeErrors = captureRuntimeErrors(page);
 
   await placeFirstPaletteItem(page);
 
@@ -86,6 +96,7 @@ test("nested SVG click activates the owning Rotate button", async ({ page }) => 
     return { w: item.w, h: item.h, rotation: item.rotation, revision: STATE.revision, status: STATE.status };
   });
 
+  expect(runtimeErrors).toEqual([]);
   expect(after.w).toBe(before.h);
   expect(after.h).toBe(before.w);
   expect(after.rotation).toBe(before.rotation === 90 ? 0 : 90);
@@ -95,6 +106,7 @@ test("nested SVG click activates the owning Rotate button", async ({ page }) => 
 
 test("nested label click activates the owning Duplicate button", async ({ page }) => {
   test.fail(true, DEFECT_REASON);
+  const runtimeErrors = captureRuntimeErrors(page);
 
   await placeFirstPaletteItem(page);
   const before = await page.evaluate(() => ({ count: STATE.items.length, revision: STATE.revision }));
@@ -110,6 +122,7 @@ test("nested label click activates the owning Duplicate button", async ({ page }
     status: STATE.status,
   }));
 
+  expect(runtimeErrors).toEqual([]);
   expect(after.count).toBe(before.count + 1);
   expect(after.revision).toBe(before.revision + 1);
   expect(after.selectedId).toBe(after.lastId);
@@ -118,6 +131,7 @@ test("nested label click activates the owning Duplicate button", async ({ page }
 
 test("nested label click activates the owning Delete button", async ({ page }) => {
   test.fail(true, DEFECT_REASON);
+  const runtimeErrors = captureRuntimeErrors(page);
 
   await placeFirstPaletteItem(page);
   const beforeRevision = await page.evaluate(() => STATE.revision);
@@ -132,6 +146,7 @@ test("nested label click activates the owning Delete button", async ({ page }) =
     status: STATE.status,
   }));
 
+  expect(runtimeErrors).toEqual([]);
   expect(after.count).toBe(0);
   expect(after.revision).toBe(beforeRevision + 1);
   expect(after.selectedId).toBeNull();
