@@ -77,6 +77,47 @@ async function placeFirstPaletteItem(page) {
   await settleRenders(page);
 }
 
+test("nested SVG click activates the owning Save button", async ({ page }) => {
+  test.fail(true, DEFECT_REASON);
+  const runtimeErrors = captureRuntimeErrors(page);
+
+  await placeFirstPaletteItem(page);
+  await page.evaluate(() => localStorage.removeItem("station-layout-builder-state"));
+  await page.locator("#saveBtn svg").click({ position: { x: 2, y: 2 } });
+  await settleRenders(page);
+
+  const saved = await page.evaluate(() => ({
+    raw: localStorage.getItem("station-layout-builder-state"),
+    status: STATE.status,
+  }));
+
+  expect(runtimeErrors).toEqual([]);
+  expect(saved.raw).not.toBeNull();
+  expect(JSON.parse(saved.raw).items).toHaveLength(1);
+  expect(saved.status).toContain("Saved");
+});
+
+test("nested label click activates the owning Snap button", async ({ page }) => {
+  test.fail(true, DEFECT_REASON);
+  const runtimeErrors = captureRuntimeErrors(page);
+
+  await page.goto(APP_URL, { waitUntil: "load" });
+  const before = await page.evaluate(() => ({ snapToGrid: STATE.ui.snapToGrid, revision: STATE.revision }));
+  await page.locator("#snapToggleBtn .toolbar-btn-label").click();
+  await settleRenders(page);
+
+  const after = await page.evaluate(() => ({
+    snapToGrid: STATE.ui.snapToGrid,
+    revision: STATE.revision,
+    status: STATE.status,
+  }));
+
+  expect(runtimeErrors).toEqual([]);
+  expect(after.snapToGrid).toBe(!before.snapToGrid);
+  expect(after.revision).toBe(before.revision + 1);
+  expect(after.status).toContain("Snap");
+});
+
 test("nested SVG click activates the owning Rotate button", async ({ page }) => {
   test.fail(true, DEFECT_REASON);
   const runtimeErrors = captureRuntimeErrors(page);
